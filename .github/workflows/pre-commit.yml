@@ -1,0 +1,26 @@
+name: pre-commit
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: |
+            any::precommit
+            any::roxygen2
+            any::pkgdown
+            any::lintr
+            any::styler
+      - uses: pre-commit/action@v3.0.0
