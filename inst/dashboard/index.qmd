@@ -1,0 +1,159 @@
+---
+title: "MDL R01 GABM Participant Dashboard"
+---
+
+## Column {width=30%}
+
+### Participants Scheduled Today
+
+```{r}
+# Sample data for participants
+participants <- data.frame(
+  week = c(0, 3, 2, 0, 4),
+  name = rep("Jane Doe", 5),
+  phone = rep("123-456-7890", 5),
+  time = rep("9:30AM", 5),
+  type = c("RW", "AT", "AL", "AT", "RW"),
+  stringsAsFactors = FALSE
+)
+
+# Create HTML cards for participants
+participants |>
+  gt::gt() |>
+  gt::tab_header(
+    title = "Participants Scheduled Today",
+    subtitle = glue::glue("Date: {lubridate::today()}")
+  ) |>
+  gt::cols_label(
+    week = "Week",
+    name = "Name",
+    phone = "Phone Number",
+    time = "Appointment Time",
+    type = "RA"
+  )
+```
+
+## Column {width=70%}
+
+### Row {height=15%}
+
+#### Reminders to Send
+
+```{r}
+# Simple reminder content
+htmltools::div(
+  class = "reminder-status",
+  "Reminder system status: Active"
+)
+```
+
+### Row {height=42.5%}
+
+#### Upcoming Appointments
+
+```{r}
+# Sample upcoming appointments
+appointments <- data.frame(
+  text = c(
+    "Jane Doe | 123-456-7890 | 5/25 @ 9AM",
+    "Jane Doe | 123-456-7890 | 5/25 @ 9AM",
+    "Jane Doe | 123-456-7890 | 5/25 @ 9AM"
+  ),
+  stringsAsFactors = FALSE
+)
+
+appointment_html <- ""
+for (i in seq_len(nrow(appointments))) {
+  appointment_html <- paste0(
+    appointment_html,
+    '<div class="status-card">',
+    appointments$text[i], "</div>"
+  )
+}
+
+htmltools::HTML(appointment_html)
+```
+
+#### Treatment Compliance
+
+```{r}
+# Sample compliance data
+compliance <- data.frame(
+  text = c(
+    "Jane Doe | 123-456-7890 | Behind by 2",
+    "Jane Doe | 123-456-7890 | Behind by 1",
+    "Jane Doe | 123-456-7890 | Behind by 6"
+  ),
+  status = c("warning", "caution", "critical"),
+  stringsAsFactors = FALSE
+)
+
+compliance_html <- ""
+for (i in seq_len(nrow(compliance))) {
+  status_class <- switch(compliance$status[i],
+    "warning" = "compliance-warning",
+    "caution" = "compliance-caution",
+    "critical" = "compliance-critical"
+  )
+
+  compliance_html <- paste0(
+    compliance_html,
+    '<div class="status-card ', status_class, '">',
+    compliance$text[i], "</div>"
+  )
+}
+
+htmltools::HTML(compliance_html)
+```
+
+### Row {height=42.5%}
+
+#### Follow-Up Surveys
+
+```{r}
+# Sample survey data
+surveys <- data.frame(
+  text = c(
+    "Jane Doe | janedoe@gmail | Wk. 12",
+    "Jane Doe | janedoe@gmail | Wk. 16",
+    "Jane Doe | janedoe@gmail | Wk. 28"
+  ),
+  stringsAsFactors = FALSE
+)
+
+survey_html <- ""
+for (i in seq_len(nrow(surveys))) {
+  survey_html <- paste0(
+    survey_html,
+    '<div class="status-card survey-card">',
+    surveys$text[i], "</div>"
+  )
+}
+
+htmltools::HTML(survey_html)
+```
+
+#### Payments
+
+```{r}
+# Sample payment data
+payments <- data.frame(
+  text = c(
+    "Jane Doe | Not Signed Document",
+    "Jane Doe | Not Signed Document",
+    "Jane Doe | Not Signed Document"
+  ),
+  stringsAsFactors = FALSE
+)
+
+payment_html <- ""
+for (i in seq_len(nrow(payments))) {
+  payment_html <- paste0(
+    payment_html,
+    '<div class="status-card payment-card">',
+    payments$text[i], "</div>"
+  )
+}
+
+htmltools::HTML(payment_html)
+```

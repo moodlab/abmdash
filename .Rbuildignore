@@ -1,4 +1,9 @@
 ^LICENSE\.md$
 ^\.Rproj\.user$
+^\.github/
 ^\.pre-commit-config\.yaml$
 ^abmdash\.Rproj$
+^docs/
+^inst/dashboard/
+^renv$
+^renv\.lock$
