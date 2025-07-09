@@ -1,0 +1,8 @@
+project:
+  type: website
+  output-dir: ../../docs
+
+format: 
+  dashboard:
+    orientation: columns
+    theme: cosmo
