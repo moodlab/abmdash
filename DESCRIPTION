@@ -1,6 +1,6 @@
 Package: abmdash
 Title: Creates ABM Project Dashboard
-Version: 0.0.0.9000
+Version: 0.0.10
 Authors@R: 
     person("Michael", "Mullarkey", , "mullarkey.mike@gmail.com", role = c("aut", "cre"))
 Description: This package creates the Attention Bias Modification project dashboard.
@@ -8,3 +8,6 @@ License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
