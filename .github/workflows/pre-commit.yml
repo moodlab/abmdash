@@ -19,7 +19,6 @@ jobs:
         with:
           extra-packages: |
             any::precommit
-            any::roxygen2
             any::pkgdown
             any::lintr
             any::styler
