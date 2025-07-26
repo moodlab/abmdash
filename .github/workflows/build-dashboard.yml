@@ -1,0 +1,49 @@
+name: Build Dashboard Daily
+
+on:
+  schedule:
+    # Run daily at 6 AM UTC (adjust timezone as needed)
+    - cron: '0 6 * * *'
+  workflow_dispatch:  # Allows manual trigger
+  push:
+    branches: [ main ]  # Also run on pushes to main
+
+jobs:
+  build-dashboard:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Build Docker image
+      run: docker build -t abmdash .
+      
+    - name: Run dashboard build
+      env:
+        STATICRYPT_PASSWORD: ${{ secrets.STATICRYPT_PASSWORD }}
+      run: |
+        docker run --rm \
+          -v "$(pwd)/docs:/app/docs" \
+          -e STATICRYPT_PASSWORD="$STATICRYPT_PASSWORD" \
+          -e R_LIBS_USER="/app/renv/library/linux-ubuntu-noble/R-4.4/x86_64-pc-linux-gnu" \
+          -e R_LIBS="/app/renv/library/linux-ubuntu-noble/R-4.4/x86_64-pc-linux-gnu:/usr/local/lib/R/site-library:/usr/local/lib/R/library" \
+          abmdash \
+          bash -c "cd inst/dashboard && quarto render index.qmd --output-dir /tmp/dashboard && cp -r /tmp/dashboard/* /app/docs/ && if [ -n \"\$STATICRYPT_PASSWORD\" ]; then echo 'Encrypting dashboard files...' && cd /app/docs && npx staticrypt ./*.html -r -d . -p \"\$STATICRYPT_PASSWORD\" --short --template-color-primary '#6667AB' --template-color-secondary '#f9f9f3' --template-title 'MDL R01 GABM Dashboard' --template-instructions 'Enter the Password' --template-button 'Access'; fi"
+    
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      if: github.ref == 'refs/heads/main'
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./docs
+        
+    - name: Upload dashboard artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dashboard-${{ github.run_number }}
+        path: docs/
+        retention-days: 30
