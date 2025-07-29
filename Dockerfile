@@ -51,9 +51,9 @@ RUN R -s -e "renv::install('.')"
 # Verify the package was installed
 RUN R -s -e "library(abmdash); cat('abmdash package loaded successfully\n')"
 
-# Set the correct renv library path as environment variable
-ENV R_LIBS_USER="/app/renv/library/linux-ubuntu-noble/R-4.4/x86_64-pc-linux-gnu"
-ENV R_LIBS="/app/renv/library/linux-ubuntu-noble/R-4.4/x86_64-pc-linux-gnu:/usr/local/lib/R/site-library:/usr/local/lib/R/library"
+# Set environment variables dynamically based on architecture
+RUN echo "R_LIBS_USER=$(R -s -e 'cat(renv::paths$library())')" >> /etc/environment
+RUN echo "R_LIBS=$(R -s -e 'cat(renv::paths$library())'):/usr/local/lib/R/site-library:/usr/local/lib/R/library" >> /etc/environment
 
 # Set environment variable for password (can be overridden at runtime)
 ENV STATICRYPT_PASSWORD=""
