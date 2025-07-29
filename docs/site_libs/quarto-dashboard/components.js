@@ -926,3 +926,4 @@
     document.addEventListener("DOMContentLoaded", insertSvgGradient);
   }
 })();
+
