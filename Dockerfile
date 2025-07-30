@@ -23,9 +23,10 @@ RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
     && apt-get install -y nodejs
 
 # Install Quarto
-RUN wget https://github.com/quarto-dev/quarto-cli/releases/download/v1.4.550/quarto-1.4.550-linux-amd64.deb \
-    && dpkg -i quarto-1.4.550-linux-amd64.deb \
-    && rm quarto-1.4.550-linux-amd64.deb
+RUN ARCH=$(dpkg --print-architecture) && \
+    wget https://github.com/quarto-dev/quarto-cli/releases/download/v1.4.550/quarto-1.4.550-linux-${ARCH}.deb \
+    && dpkg -i quarto-1.4.550-linux-${ARCH}.deb \
+    && rm quarto-1.4.550-linux-${ARCH}.deb
 
 # Install staticrypt globally
 RUN npm install -g staticrypt
