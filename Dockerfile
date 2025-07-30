@@ -51,9 +51,10 @@ RUN R -s -e "renv::install('.')"
 # Verify the package was installed
 RUN R -s -e "library(abmdash); cat('abmdash package loaded successfully\n')"
 
-# Set environment variables dynamically based on architecture
-RUN echo "R_LIBS_USER=$(R -s -e 'cat(renv::paths$library())')" >> /etc/environment
-RUN echo "R_LIBS=$(R -s -e 'cat(renv::paths$library())'):/usr/local/lib/R/site-library:/usr/local/lib/R/library" >> /etc/environment
+# Create .Renviron file in user home directory where R will find it
+RUN R --slave --no-restore -e "cat('R_LIBS_USER=', renv::paths\$library(), '\n', sep='')" > ~/.Renviron 2>/dev/null && \
+    R --slave --no-restore -e "cat('R_LIBS=', renv::paths\$library(), ':/usr/local/lib/R/site-library:/usr/local/lib/R/library\n', sep='')" >> ~/.Renviron 2>/dev/null && \
+    echo "Contents of ~/.Renviron:" && cat ~/.Renviron
 
 # Set environment variable for password (can be overridden at runtime)
 ENV STATICRYPT_PASSWORD=""

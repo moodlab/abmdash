@@ -30,7 +30,7 @@ jobs:
           -v "$(pwd)/docs:/app/docs" \
           -e STATICRYPT_PASSWORD="$STATICRYPT_PASSWORD" \
           abmdash \
-          bash -c "source /etc/environment && cd inst/dashboard && quarto render index.qmd --output-dir /tmp/dashboard && cp -r /tmp/dashboard/* /app/docs/ && if [ -n \"\$STATICRYPT_PASSWORD\" ]; then echo 'Encrypting dashboard files...' && cd /app/docs && npx staticrypt ./*.html -r -d . -p \"\$STATICRYPT_PASSWORD\" --short --template-color-primary '#6667AB' --template-color-secondary '#f9f9f3' --template-title 'MDL R01 GABM Dashboard' --template-instructions 'Enter the Password' --template-button 'Access'; fi"
+          bash -c "cd inst/dashboard && quarto render index.qmd --output-dir /tmp/dashboard && cp -r /tmp/dashboard/* /app/docs/ && if [ -n \"\$STATICRYPT_PASSWORD\" ]; then echo 'Encrypting dashboard files...' && cd /app/docs && npx staticrypt ./*.html -r -d . -p \"\$STATICRYPT_PASSWORD\" --short --template-color-primary '#6667AB' --template-color-secondary '#f9f9f3' --template-title 'MDL R01 GABM Dashboard' --template-instructions 'Enter the Password' --template-button 'Access'; fi"
     
     - name: Commit and push updated dashboard
       if: github.ref == 'refs/heads/main'
