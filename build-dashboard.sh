@@ -17,7 +17,7 @@ docker run --rm \
     -v "$(pwd)/docs:/app/docs" \
     -e STATICRYPT_PASSWORD="$PASSWORD" \
     "$IMAGE_NAME" \
-    bash -c "source /etc/environment && cd inst/dashboard && quarto render index.qmd --output-dir /tmp/dashboard && cp -r /tmp/dashboard/* /app/docs/ && if [ -n \"\$STATICRYPT_PASSWORD\" ]; then echo 'Encrypting dashboard files...' && cd /app/docs && npx staticrypt ./*.html -r -d . -p \"\$STATICRYPT_PASSWORD\" --short --template-color-primary '#6667AB' --template-color-secondary '#f9f9f3' --template-title 'MDL R01 GABM Dashboard' --template-instructions 'Enter the Password' --template-button 'Access'; else echo 'No password set, skipping encryption'; fi"
+    bash -c "cd inst/dashboard && quarto render index.qmd --output-dir /tmp/dashboard && cp -r /tmp/dashboard/* /app/docs/ && if [ -n \"\$STATICRYPT_PASSWORD\" ]; then echo 'Encrypting dashboard files...' && cd /app/docs && npx staticrypt ./*.html -r -d . -p \"\$STATICRYPT_PASSWORD\" --short --template-color-primary '#6667AB' --template-color-secondary '#f9f9f3' --template-title 'MDL R01 GABM Dashboard' --template-instructions 'Enter the Password' --template-button 'Access'; else echo 'No password set, skipping encryption'; fi"
 
 echo "Dashboard created successfully in ./docs/"
 
