@@ -1,0 +1,32 @@
+# Git files
+.git
+.gitignore
+
+# Documentation and development files
+README.md
+*.md
+docs/
+man/
+
+# Tests and development
+tests/
+testthat/
+
+# R development files
+.Rproj.user
+*.Rproj
+.Rhistory
+.RData
+.Ruserdata
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp

@@ -11,10 +11,8 @@ RoxygenNote: 7.3.2
 Suggests:
     testthat (>= 3.0.0)
 Imports:
-    glue,
-    htmltools,
     rmarkdown,
     quarto,
-    gt,
-    lubridate,
+    tinytable,
+    pak
 Config/testthat/edition: 3

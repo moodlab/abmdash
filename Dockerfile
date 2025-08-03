@@ -1,6 +1,7 @@
-FROM rocker/r-ver:4.4.2
+# Stage 1: Base image with renv restoration
+FROM rocker/r-ver:4.4.2 AS base
 
-# Install system dependencies
+# Install system dependencies needed for packages
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
@@ -18,50 +19,76 @@ RUN apt-get update && apt-get install -y \
     libjpeg-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js for staticrypt
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
-    && apt-get install -y nodejs
+# Set up project directory
+WORKDIR /project
 
-# Install Quarto
-RUN ARCH=$(dpkg --print-architecture) && \
-    wget https://github.com/quarto-dev/quarto-cli/releases/download/v1.4.550/quarto-1.4.550-linux-${ARCH}.deb \
-    && dpkg -i quarto-1.4.550-linux-${ARCH}.deb \
-    && rm quarto-1.4.550-linux-${ARCH}.deb
-
-# Install staticrypt globally
-RUN npm install -g staticrypt
-
-# Set working directory
-WORKDIR /app
-
-# Install renv globally
-RUN R -e "install.packages('renv', repos = c(CRAN = 'https://cloud.r-project.org'))"
-
-# Copy renv infrastructure first
+# Copy renv metadata
 COPY renv.lock renv.lock
-COPY .Rprofile .Rprofile  
-COPY renv/ renv/
+COPY .Rprofile .Rprofile
+RUN mkdir -p renv
+COPY renv/activate.R renv/activate.R
 
-# Restore packages using existing renv setup
-RUN R -s -e "renv::restore()"
+# Environment variables for renv
+ENV RENV_CONFIG_REPOS_OVERRIDE="https://packagemanager.posit.co/cran/__linux__/jammy/latest"
+ENV RENV_PATHS_LIBRARY_ROOT=/project/renv/library
+ENV RENV_CONFIG_CACHE_SYMLINKS="FALSE"
 
-# Copy rest of project and install package
-COPY . .
-RUN R -s -e "renv::install('.')"
+# Restore renv packages (no symlinks)
+RUN R -s -e "source('renv/activate.R'); renv::restore(prompt = FALSE)"
 
-# Verify the package was installed
-RUN R -s -e "library(abmdash); cat('abmdash package loaded successfully\n')"
+# Stage 2: Runtime image
+FROM rocker/r-ver:4.4.2
 
-# Create .Renviron file in user home directory where R will find it
-RUN R --slave --no-restore -e "cat('R_LIBS_USER=', renv::paths\$library(), '\n', sep='')" > ~/.Renviron 2>/dev/null && \
-    R --slave --no-restore -e "cat('R_LIBS=', renv::paths\$library(), ':/usr/local/lib/R/site-library:/usr/local/lib/R/library\n', sep='')" >> ~/.Renviron 2>/dev/null && \
-    echo "Contents of ~/.Renviron:" && cat ~/.Renviron
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    pandoc \
+    libcurl4-openssl-dev \
+    libssl-dev \
+    libxml2-dev \
+    libfontconfig1-dev \
+    libharfbuzz-dev \
+    libfribidi-dev \
+    libfreetype6-dev \
+    libpng-dev \
+    libtiff5-dev \
+    libjpeg-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Set environment variable for password (can be overridden at runtime)
+# Install Node.js and staticrypt
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs && \
+    npm install -g staticrypt && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Quarto CLI
+RUN mkdir -p /opt && \
+    wget -q https://github.com/quarto-dev/quarto-cli/releases/download/v1.4.550/quarto-1.4.550-linux-amd64.tar.gz && \
+    tar xzf quarto-1.4.550-linux-amd64.tar.gz -C /opt && \
+    rm quarto-1.4.550-linux-amd64.tar.gz && \
+    ln -s /opt/quarto-1.4.550/bin/quarto /usr/local/bin/quarto
+
+WORKDIR /project
+
+# Copy entire project from base stage (including renv library and metadata)
+COPY --from=base /project .
+
+# Copy application files (do not overwrite renv library)
+COPY --chmod=755 *.R ./
+COPY --chmod=755 DESCRIPTION ./
+COPY --chmod=755 NAMESPACE ./
+COPY --chmod=755 inst ./inst
+
+# Reinstall the local package into the renv environment
+RUN R -s -e "Sys.setenv(RENV_PATHS_LIBRARY_ROOT='/project/renv/library'); source('renv/activate.R'); install.packages('.', repos = NULL, type = 'source', dependencies = FALSE)"
+
+# Environment variables to enforce use of restored renv
+ENV RENV_PATHS_LIBRARY_ROOT=/project/renv/library
+ENV RENV_CONFIG_CACHE_ENABLED=FALSE
 ENV STATICRYPT_PASSWORD=""
 
 # Create output directory
-RUN mkdir -p docs
+RUN mkdir -p docs && chmod 755 docs
 
-# Default command
 CMD ["bash"]
