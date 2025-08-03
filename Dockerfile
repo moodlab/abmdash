@@ -74,6 +74,8 @@ WORKDIR /project
 # Copy entire project from base stage (including renv library and metadata)
 COPY --from=base /project .
 
+ENV R_LIBS_SITE=/project/renv/library
+
 # Copy application files (do not overwrite renv library)
 COPY --chmod=755 *.R ./
 COPY --chmod=755 DESCRIPTION ./
