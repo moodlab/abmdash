@@ -29,10 +29,10 @@ RUN mkdir -p renv
 COPY renv/activate.R renv/activate.R
 COPY renv/settings.json renv/settings.json
 
-# Change default location of cache to project folder
-RUN mkdir renv/.cache
-ENV RENV_PATHS_CACHE=/project/renv/.cache
+# Disable renv cache and force project-relative paths
+ENV RENV_PATHS_CACHE=FALSE
 ENV RENV_PATHS_LIBRARY=/project/renv/library
+ENV RENV_CONFIG_CACHE_ENABLED=FALSE
 
 # Restore renv packages
 RUN R -s -e "renv::restore()"
@@ -83,11 +83,11 @@ COPY --chmod=755 NAMESPACE ./
 COPY --chmod=755 R ./R
 COPY --chmod=755 inst ./inst
 
-# Install the local package into the renv environment
-RUN R -s -e "source('renv/activate.R'); install.packages('.', repos=NULL, type='source', dependencies=FALSE)"
+# Install the local package into the renv environment with explicit path
+RUN R -s -e "source('renv/activate.R'); install.packages('.', repos=NULL, type='source', dependencies=FALSE, lib='/project/renv/library')"
 
 # Environment variables to enforce use of restored renv
-ENV RENV_PATHS_CACHE=/project/renv/.cache
+ENV RENV_PATHS_CACHE=FALSE
 ENV RENV_PATHS_LIBRARY=/project/renv/library
 ENV RENV_PATHS_LIBRARY_ROOT=/project/renv/library
 ENV RENV_CONFIG_CACHE_ENABLED=FALSE
