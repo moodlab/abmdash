@@ -34,11 +34,11 @@ docker run --rm \
       cat('Contents of main library:', list.files(.libPaths()[1]), '\n');
       cat('Looking for abmdash dir:', dir.exists(file.path(.libPaths()[1], 'abmdash')), '\n');
       cat('Looking for abmdash:', 'abmdash' %in% rownames(installed.packages()), '\n');
-      if (!'abmdash' %in% rownames(installed.packages())) {
-        cat('Installing abmdash package...\n');
-        install.packages('/project', repos=NULL, type='source', dependencies=FALSE);
-        cat('abmdash installation completed\n');
-      }
+      # Always install abmdash to ensure it's available
+      cat('Installing abmdash package...\n');
+      install.packages('/project', repos=NULL, type='source', dependencies=FALSE);
+      cat('abmdash installation completed\n');
+      
       library(quarto);
       setwd('/tmp');
       file.copy('/project/inst/dashboard/index.qmd', '/tmp/index.qmd', overwrite = TRUE);

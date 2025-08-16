@@ -7,7 +7,6 @@ title: "MDL R01 GABM Participant Dashboard"
 ### Participants Scheduled Today
 
 ```{r}
-library(abmdash)
 abmdash::run_initial_function(1)
 
 # Sample data for participants
