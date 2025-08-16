@@ -83,8 +83,7 @@ COPY --chmod=755 NAMESPACE ./
 COPY --chmod=755 R ./R
 COPY --chmod=755 inst ./inst
 
-# Install the local package into the renv environment with explicit path
-RUN R -s -e "source('renv/activate.R'); install.packages('.', repos=NULL, type='source', dependencies=FALSE, lib='/project/renv/library')"
+# Local package will be installed at runtime
 
 # Environment variables to enforce use of restored renv
 ENV RENV_PATHS_CACHE=FALSE
