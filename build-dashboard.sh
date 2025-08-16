@@ -67,6 +67,11 @@ docker run --rm \
           --template-title \"MDL R01 GABM Dashboard\" \
           --template-instructions \"Enter the Password\" \
           --template-button \"Access\"
+        # Move encrypted file from encrypted/ subdirectory back to main directory
+        if [ -f \"encrypted/\$html\" ]; then
+          mv \"encrypted/\$html\" \"\$html\"
+          rmdir encrypted 2>/dev/null || true
+        fi
       done
     fi
   "
