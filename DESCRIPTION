@@ -14,5 +14,7 @@ Imports:
     rmarkdown,
     quarto,
     tinytable,
-    pak
+    pak,
+    httr2,
+    utils
 Config/testthat/edition: 3

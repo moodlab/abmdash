@@ -7,9 +7,29 @@ title: "MDL R01 GABM Participant Dashboard"
 ### Participants Scheduled Today
 
 ```{r}
-abmdash::run_initial_function(1)
+# Test REDCap API connection
+redcap_status <- tryCatch({
+  # Simple test to see if we can connect to REDCap
+  token <- Sys.getenv("REDCAP_API_TOKEN")
+  
+  if (token == "" || is.na(token)) {
+    "❌ REDCAP_API_TOKEN not configured"
+  } else {
+    # Try to get metadata as a simple test
+    metadata <- abmdash::get_redcap_metadata()
+    if (is.null(metadata) || length(metadata) == 0) {
+      "❌ REDCap API call failed"
+    } else {
+      paste("✅ REDCap connected -", length(metadata), "fields available")
+    }
+  }
+}, error = function(e) {
+  paste("❌ REDCap error:", e$message)
+})
 
-# Sample data for participants
+cat("REDCap Status:", redcap_status, "\n")
+
+# Sample data for participants (will be replaced with REDCap data once working)
 participants <- data.frame(
   week = c(0, 3, 2, 0, 4),
   name = rep("Jane Doe", 5),

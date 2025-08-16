@@ -16,6 +16,7 @@ docker run --rm \
   --platform linux/amd64 \
   -v "$(pwd)/docs:/project/docs" \
   -e STATICRYPT_PASSWORD="$PASSWORD" \
+  -e REDCAP_API_TOKEN="$REDCAP_API_TOKEN" \
   -w /project \
   "$IMAGE_NAME" \
   bash -c "

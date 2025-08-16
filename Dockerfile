@@ -91,6 +91,7 @@ ENV RENV_PATHS_LIBRARY=/project/renv/library
 ENV RENV_PATHS_LIBRARY_ROOT=/project/renv/library
 ENV RENV_CONFIG_CACHE_ENABLED=FALSE
 ENV STATICRYPT_PASSWORD=""
+ENV REDCAP_API_TOKEN=""
 
 # Create output directory
 RUN mkdir -p docs && chmod 755 docs
