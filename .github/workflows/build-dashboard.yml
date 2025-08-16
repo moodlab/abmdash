@@ -8,9 +8,10 @@ on:
     branches: [ main ]     # Run on pushes to main
 
 jobs:
-  build-dashboard:
+  build-image:
     runs-on: ubuntu-latest
-
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -18,8 +19,48 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image
-        run: docker build -t abmdash .
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/abmdash
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-dashboard:
+    runs-on: ubuntu-latest
+    needs: build-image
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run dashboard build
         env:
@@ -29,7 +70,7 @@ jobs:
             -v "$(pwd)/docs:/project/docs" \
             -e STATICRYPT_PASSWORD="$STATICRYPT_PASSWORD" \
             -w /project \
-            abmdash \
+            ghcr.io/${{ github.repository_owner }}/abmdash:latest \
             bash -c "
               set -e
               echo '🔧 Using prebuilt renv library...'
