@@ -7,6 +7,9 @@ title: "MDL R01 GABM Participant Dashboard"
 ### Participants Scheduled Today
 
 ```{r}
+
+abmdash::run_initial_function(1)
+
 # Sample data for participants
 participants <- data.frame(
   week = c(0, 3, 2, 0, 4),

@@ -1,5 +1,5 @@
 # Stage 1: Base image with renv restoration
-FROM rocker/r-ver:4.4.2 AS base
+FROM rocker/r-ver:4.5.1 AS base
 
 # Install system dependencies needed for packages
 RUN apt-get update && apt-get install -y \
@@ -27,17 +27,18 @@ COPY renv.lock renv.lock
 COPY .Rprofile .Rprofile
 RUN mkdir -p renv
 COPY renv/activate.R renv/activate.R
+COPY renv/settings.json renv/settings.json
 
-# Environment variables for renv
-ENV RENV_CONFIG_REPOS_OVERRIDE="https://packagemanager.posit.co/cran/__linux__/jammy/latest"
-ENV RENV_PATHS_LIBRARY_ROOT=/project/renv/library
-ENV RENV_CONFIG_CACHE_SYMLINKS="FALSE"
+# Change default location of cache to project folder
+RUN mkdir renv/.cache
+ENV RENV_PATHS_CACHE=/project/renv/.cache
+ENV RENV_PATHS_LIBRARY=/project/renv/library
 
-# Restore renv packages (no symlinks)
-RUN R -s -e "source('renv/activate.R'); renv::restore(prompt = FALSE)"
+# Restore renv packages
+RUN R -s -e "renv::restore()"
 
 # Stage 2: Runtime image
-FROM rocker/r-ver:4.4.2
+FROM rocker/r-ver:4.5.1
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
@@ -77,15 +78,17 @@ COPY --from=base /project .
 ENV R_LIBS_SITE=/project/renv/library
 
 # Copy application files (do not overwrite renv library)
-COPY --chmod=755 *.R ./
 COPY --chmod=755 DESCRIPTION ./
 COPY --chmod=755 NAMESPACE ./
+COPY --chmod=755 R ./R
 COPY --chmod=755 inst ./inst
 
-# Reinstall the local package into the renv environment
-RUN R -s -e "Sys.setenv(RENV_PATHS_LIBRARY_ROOT='/project/renv/library'); source('renv/activate.R'); install.packages('.', repos = NULL, type = 'source', dependencies = FALSE)"
+# Install the local package into the renv environment
+RUN R -s -e "source('renv/activate.R'); install.packages('.', repos=NULL, type='source', dependencies=FALSE)"
 
 # Environment variables to enforce use of restored renv
+ENV RENV_PATHS_CACHE=/project/renv/.cache
+ENV RENV_PATHS_LIBRARY=/project/renv/library
 ENV RENV_PATHS_LIBRARY_ROOT=/project/renv/library
 ENV RENV_CONFIG_CACHE_ENABLED=FALSE
 ENV STATICRYPT_PASSWORD=""

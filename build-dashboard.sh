@@ -21,10 +21,27 @@ docker run --rm \
   bash -c "
     set -e
     echo '🔧 Using prebuilt renv library...'
+    echo '=== DEBUGGING RUNTIME ENVIRONMENT ==='
+    ls -la /project/renv/library/
+    echo 'Files in renv lib subdirs:'
+    find /project/renv/library -name '*abmdash*' || echo 'No abmdash found anywhere'
+    echo 'Environment variables:'
+    env | grep RENV
+    echo '=== R SESSION DEBUG ==='
     Rscript -e \"
-      lib <- Sys.glob('/project/renv/library/project-*/linux-ubuntu-noble/R-4.4/x86_64-pc-linux-gnu');
-      .libPaths(c(lib, .libPaths()));
       source('/project/renv/activate.R');
+      cat('Library paths:', .libPaths(), '\n');
+      cat('Contents of main library:', list.files(.libPaths()[1]), '\n');
+      cat('Looking for abmdash dir:', dir.exists(file.path(.libPaths()[1], 'abmdash')), '\n');
+      cat('Looking for abmdash:', 'abmdash' %in% rownames(installed.packages()), '\n');
+      cat('Trying manual install.packages...\n');
+      tryCatch({
+        install.packages('/project', repos=NULL, type='source', dependencies=FALSE);
+        cat('Manual install successful\n');
+      }, error=function(e) {
+        cat('Manual install failed:', e\$message, '\n');
+      });
+      cat('abmdash after manual install:', 'abmdash' %in% rownames(installed.packages()), '\n');
       library(quarto);
       setwd('/tmp');
       file.copy('/project/inst/dashboard/index.qmd', '/tmp/index.qmd', overwrite = TRUE);
