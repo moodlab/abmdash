@@ -2,6 +2,11 @@
 
 export(call_redcap_api)
 export(encrypt_dashboard)
+export(get_calendar_events)
+export(get_redcap_logs)
 export(get_redcap_metadata)
 export(get_redcap_records)
+export(get_survey_completions)
+export(get_upcoming_followups)
+export(list_calendars)
 export(run_initial_function)

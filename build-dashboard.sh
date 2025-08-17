@@ -17,6 +17,7 @@ docker run --rm \
   -v "$(pwd)/docs:/project/docs" \
   -e STATICRYPT_PASSWORD="$PASSWORD" \
   -e REDCAP_API_TOKEN="$REDCAP_API_TOKEN" \
+  -e GOOGLE_SERVICE_ACCOUNT_JSON="$GOOGLE_SERVICE_ACCOUNT_JSON" \
   -w /project \
   "$IMAGE_NAME" \
   bash -c "

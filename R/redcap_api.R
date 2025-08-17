@@ -144,3 +144,191 @@ get_redcap_records <- function(fields = NULL, forms = NULL, records = NULL,
 get_redcap_metadata <- function(format = "json") {
   call_redcap_api(content = "metadata", format = format)
 }
+
+#' Get Survey Completion Status
+#'
+#' Retrieves survey completion timestamps and status for all participants.
+#'
+#' @param surveys Character vector of survey instrument names to check. If NULL, all surveys are included.
+#' @param records Character vector of record IDs to check. If NULL, all records are included.
+#' @param format Character string specifying the format ("json", "csv"). Default is "json"
+#'
+#' @return Data frame with columns: record_id, survey_instrument, survey_timestamp, survey_complete
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' # Get all survey completions
+#' completions <- get_survey_completions()
+#' 
+#' # Get specific surveys
+#' baseline_completions <- get_survey_completions(surveys = c("baseline_survey", "followup_survey"))
+#' 
+#' # Get completions for specific participants
+#' participant_completions <- get_survey_completions(records = c("001", "002", "003"))
+#' }
+get_survey_completions <- function(surveys = NULL, records = NULL, format = "json") {
+  
+  # Get the metadata to identify survey instruments and timestamp fields
+  metadata <- get_redcap_metadata(format = "json")
+  
+  if (is.null(metadata) || length(metadata) == 0) {
+    stop("Could not retrieve metadata from REDCap")
+  }
+  
+  # Convert to data frame if it's a list
+  if (is.list(metadata) && !is.data.frame(metadata)) {
+    metadata_df <- do.call(rbind, lapply(metadata, function(x) {
+      data.frame(
+        field_name = x$field_name %||% "",
+        form_name = x$form_name %||% "",
+        field_type = x$field_type %||% "",
+        stringsAsFactors = FALSE
+      )
+    }))
+  } else {
+    metadata_df <- metadata
+  }
+  
+  # Find survey timestamp and completion fields
+  # REDCap automatically creates fields like: [instrument]_timestamp and [instrument]_complete
+  survey_fields <- metadata_df[grepl("_(timestamp|complete)$", metadata_df$field_name), ]
+  
+  # Extract unique instrument names
+  instrument_names <- unique(gsub("_(timestamp|complete)$", "", survey_fields$field_name))
+  
+  # Filter to requested surveys if specified
+  if (!is.null(surveys)) {
+    instrument_names <- intersect(instrument_names, surveys)
+  }
+  
+  if (length(instrument_names) == 0) {
+    warning("No survey instruments found")
+    return(data.frame(
+      record_id = character(0),
+      survey_instrument = character(0),
+      survey_timestamp = character(0),
+      survey_complete = character(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+  
+  # Build field list for timestamp and complete fields
+  timestamp_fields <- paste0(instrument_names, "_timestamp")
+  complete_fields <- paste0(instrument_names, "_complete")
+  all_fields <- c("record_id", timestamp_fields, complete_fields)
+  
+  # Get the data
+  survey_data <- get_redcap_records(
+    fields = all_fields,
+    records = records,
+    format = format
+  )
+  
+  if (is.null(survey_data) || length(survey_data) == 0) {
+    warning("No survey data retrieved")
+    return(data.frame(
+      record_id = character(0),
+      survey_instrument = character(0),
+      survey_timestamp = character(0),
+      survey_complete = character(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+  
+  # Convert to data frame if needed
+  if (is.list(survey_data) && !is.data.frame(survey_data)) {
+    survey_df <- do.call(rbind, lapply(survey_data, function(x) {
+      # Ensure all expected fields exist
+      for (field in all_fields) {
+        if (!field %in% names(x)) {
+          x[[field]] <- ""
+        }
+      }
+      data.frame(x, stringsAsFactors = FALSE)
+    }))
+  } else {
+    survey_df <- survey_data
+  }
+  
+  # Reshape from wide to long format
+  result_list <- list()
+  
+  for (instrument in instrument_names) {
+    timestamp_field <- paste0(instrument, "_timestamp")
+    complete_field <- paste0(instrument, "_complete")
+    
+    if (timestamp_field %in% names(survey_df) && complete_field %in% names(survey_df)) {
+      instrument_data <- data.frame(
+        record_id = survey_df$record_id,
+        survey_instrument = instrument,
+        survey_timestamp = survey_df[[timestamp_field]],
+        survey_complete = survey_df[[complete_field]],
+        stringsAsFactors = FALSE
+      )
+      
+      # Only include rows where there's some survey activity
+      instrument_data <- instrument_data[
+        !is.na(instrument_data$survey_timestamp) & 
+        instrument_data$survey_timestamp != "" |
+        !is.na(instrument_data$survey_complete) & 
+        instrument_data$survey_complete != "", 
+      ]
+      
+      result_list[[instrument]] <- instrument_data
+    }
+  }
+  
+  # Combine all instruments
+  if (length(result_list) > 0) {
+    final_result <- do.call(rbind, result_list)
+    rownames(final_result) <- NULL
+    return(final_result)
+  } else {
+    return(data.frame(
+      record_id = character(0),
+      survey_instrument = character(0),
+      survey_timestamp = character(0),
+      survey_complete = character(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+}
+
+#' Get REDCap Logs
+#'
+#' Retrieves logging data from REDCap.
+#'
+#' @param records Character vector of record IDs. If NULL, gets all records.
+#' @param begin_time Character string for start time filter (format: "YYYY-MM-DD HH:MM:SS").
+#' @param end_time Character string for end time filter (format: "YYYY-MM-DD HH:MM:SS").
+#'
+#' @return List or data frame with log entries
+#' @export
+get_redcap_logs <- function(records = NULL, begin_time = NULL, end_time = NULL) {
+  
+  # Build parameters
+  params <- list(content = "log", format = "json")
+  
+  if (!is.null(records)) {
+    if (length(records) == 1) {
+      params$record <- records
+    } else {
+      params$records <- paste(records, collapse = ",")
+    }
+  }
+  
+  if (!is.null(begin_time)) {
+    params$beginTime <- begin_time
+  }
+  
+  if (!is.null(end_time)) {
+    params$endTime <- end_time
+  }
+  
+  # Call the API
+  do.call(call_redcap_api, params)
+}
+
+# Helper function for null coalescing
+`%||%` <- function(x, y) if (is.null(x)) y else x

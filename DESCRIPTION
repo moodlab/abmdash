@@ -16,5 +16,8 @@ Imports:
     tinytable,
     pak,
     httr2,
-    utils
+    utils,
+    jsonlite,
+    jose,
+    openssl
 Config/testthat/edition: 3
