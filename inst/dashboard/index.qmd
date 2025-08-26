@@ -20,23 +20,23 @@ calendar_events <- tryCatch({
       stringsAsFactors = FALSE
     )
   } else {
-    # Get today's and tomorrow's events
+    # Get next week's events (today through next 7 days)
     today_start <- paste0(Sys.Date(), "T00:00:00Z")
-    tomorrow_end <- paste0(Sys.Date() + 1, "T23:59:59Z")
+    next_week_end <- paste0(Sys.Date() + 7, "T23:59:59Z")
     
     # Use the specific Calendar ID for "Research Team Schedule"
     events <- abmdash::get_calendar_events(
       calendar_id = "ff5b00ef944953433c805960d64adae47a456ee0d2515410cc648f65bafc2635@group.calendar.google.com",
       time_min = today_start,
-      time_max = tomorrow_end,
+      time_max = next_week_end,
       max_results = 20
     )
     
     # Debug: Check what we're getting
     debug_info <- paste(
       "API Response - Items count:", if("items" %in% names(events)) length(events$items) else "No items field",
-      "| Time range:", today_start, "to", tomorrow_end,
-      "| Today:", Sys.Date(), "| Tomorrow:", Sys.Date() + 1
+      "| Time range:", today_start, "to", next_week_end,
+      "| Today:", Sys.Date(), "| Next week end:", Sys.Date() + 7
     )
     
     # Format events for display
@@ -54,17 +54,27 @@ calendar_events <- tryCatch({
           # Parse and format the datetime
           dt <- as.POSIXct(event$start$dateTime, format = "%Y-%m-%dT%H:%M:%S", tz = "UTC")
           event_date <- as.Date(dt)
-          if (event_date == Sys.Date()) {
+          days_diff <- as.numeric(event_date - Sys.Date())
+          
+          if (days_diff == 0) {
             start_time <- paste("Today", format(dt, "%I:%M %p"))
-          } else {
+          } else if (days_diff == 1) {
             start_time <- paste("Tomorrow", format(dt, "%I:%M %p"))
+          } else {
+            day_name <- format(event_date, "%a")
+            start_time <- paste(day_name, format(event_date, "%m/%d"), format(dt, "%I:%M %p"))
           }
         } else if (!is.null(event$start$date)) {
           event_date <- as.Date(event$start$date)
-          if (event_date == Sys.Date()) {
+          days_diff <- as.numeric(event_date - Sys.Date())
+          
+          if (days_diff == 0) {
             start_time <- "Today (All Day)"
-          } else {
+          } else if (days_diff == 1) {
             start_time <- "Tomorrow (All Day)"
+          } else {
+            day_name <- format(event_date, "%a")
+            start_time <- paste(day_name, format(event_date, "%m/%d"), "(All Day)")
           }
         } else {
           start_time <- "Unknown"
@@ -106,7 +116,7 @@ calendar_events <- tryCatch({
 
 # Display calendar events
 calendar_events |>
-  tinytable::tt(caption = "Today & Tomorrow's Schedule")
+  tinytable::tt(caption = "Upcoming Week's Schedule")
 ```
 
 :::
