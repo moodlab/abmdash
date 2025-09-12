@@ -330,5 +330,152 @@ get_redcap_logs <- function(records = NULL, begin_time = NULL, end_time = NULL) 
   do.call(call_redcap_api, params)
 }
 
+#' Get REDCap Report
+#'
+#' Retrieves data from a specific REDCap report using the report ID.
+#'
+#' @param report_id Character or numeric report ID
+#' @param format Character string specifying the format ("json", "csv"). Default is "json"
+#' @param date_begin Optional start date for filtering (YYYY-MM-DD format)
+#' @param date_end Optional end date for filtering (YYYY-MM-DD format)
+#'
+#' @return Data frame or list containing the report data
+#' @export
+get_redcap_report <- function(report_id, format = "json", date_begin = NULL, date_end = NULL) {
+  
+  # Build parameters for report API call
+  params <- list(
+    content = "report",
+    report_id = as.character(report_id),
+    format = format,
+    returnFormat = format
+  )
+  
+  # Add date filtering if provided
+  if (!is.null(date_begin)) {
+    params$dateRangeBegin <- date_begin
+  }
+  
+  if (!is.null(date_end)) {
+    params$dateRangeEnd <- date_end
+  }
+  
+  # Call the API
+  do.call(call_redcap_api, params)
+}
+
+#' Get Eligible Participants from Report 11942
+#'
+#' Filters report 11942 data to find participants who meet eligibility criteria.
+#' Eligibility requires: r01es_commute == "1" && r01es_austin == "1" && 
+#' r01es_phone == "1" && r01es_computer == "1" && r01es_bpd == "0" && 
+#' r01es_psychotherapy == "0" && phq8score >= 17 && r01es_druguse == "0" && 
+#' medchng == "0" && r01es_medstop == "0" && r01es_medstart == "0"
+#'
+#' @return Data frame with de-identified summary of eligible participants
+#' @export
+get_eligible_participants <- function() {
+  
+  tryCatch({
+    # Get data from report 11942 (all records)
+    raw_data <- get_redcap_report(11942)
+    
+    if (is.null(raw_data) || length(raw_data) == 0) {
+      return(data.frame(
+        Status = "No data from report 11942",
+        Total_Records = 0,
+        Eligible_Count = 0,
+        stringsAsFactors = FALSE
+      ))
+    }
+    
+    # Convert list to data frame
+    if (is.list(raw_data) && !is.data.frame(raw_data)) {
+      report_df <- do.call(rbind, lapply(raw_data, function(x) {
+        data.frame(x, stringsAsFactors = FALSE)
+      }))
+    } else {
+      report_df <- raw_data
+    }
+    
+    if (is.null(report_df) || nrow(report_df) == 0) {
+      return(data.frame(
+        Status = "No participants in report",
+        Total_Records = 0,
+        Eligible_Count = 0,
+        stringsAsFactors = FALSE
+      ))
+    }
+    
+    total_records <- nrow(report_df)
+    
+    # Filter to past 30 days using interview_date
+    one_month_ago <- Sys.Date() - 30
+    today <- Sys.Date()
+    
+    # First filter by date if interview_date is available
+    if ("interview_date" %in% names(report_df)) {
+      # Parse interview_date and filter to past month
+      report_df$interview_date_parsed <- as.Date(report_df$interview_date)
+      recent_records <- report_df[
+        !is.na(report_df$interview_date_parsed) &
+        report_df$interview_date_parsed >= one_month_ago &
+        report_df$interview_date_parsed <= today,
+      ]
+    } else {
+      recent_records <- report_df
+    }
+    
+    recent_count <- nrow(recent_records)
+    
+    # Apply eligibility criteria to recent records
+    eligible_participants <- recent_records[
+      !is.na(recent_records$r01es_commute) & recent_records$r01es_commute == "1" &
+      !is.na(recent_records$r01es_austin) & recent_records$r01es_austin == "1" &
+      !is.na(recent_records$r01es_phone) & recent_records$r01es_phone == "1" &
+      !is.na(recent_records$r01es_computer) & recent_records$r01es_computer == "1" &
+      !is.na(recent_records$r01es_bpd) & recent_records$r01es_bpd == "0" &
+      !is.na(recent_records$r01es_psychotherapy) & recent_records$r01es_psychotherapy == "0" &
+      !is.na(recent_records$phq8score) & as.numeric(recent_records$phq8score) >= 17 &
+      !is.na(recent_records$r01es_druguse) & recent_records$r01es_druguse == "0" &
+      !is.na(recent_records$medchng) & recent_records$medchng == "0" &
+      !is.na(recent_records$r01es_medstop) & recent_records$r01es_medstop == "0" &
+      !is.na(recent_records$r01es_medstart) & recent_records$r01es_medstart == "0",
+    ]
+    
+    eligible_count <- nrow(eligible_participants)
+    
+    # If no eligible participants, return summary
+    if (eligible_count == 0) {
+      return(data.frame(
+        Status = "No eligible participants in past 30 days",
+        Total_Records = total_records,
+        Recent_Records = recent_count,
+        Eligible_Count = 0,
+        stringsAsFactors = FALSE
+      ))
+    }
+    
+    # Return the specific columns for eligible participants
+    result <- data.frame(
+      record_id = eligible_participants$record_id,
+      interview_date = eligible_participants$interview_date,
+      link_to_record_id = paste0("https://redcap.prc.utexas.edu/redcap/redcap_v15.5.6/DataEntry/record_home.php?pid=3385&arm=1&id=", 
+                                eligible_participants$record_id),
+      stringsAsFactors = FALSE
+    )
+    
+    return(result)
+    
+  }, error = function(e) {
+    return(data.frame(
+      Status = paste("Error:", substr(e$message, 1, 50)),
+      Total_Records = 0,
+      Eligible_Count = 0,
+      stringsAsFactors = FALSE
+    ))
+  })
+}
+
 # Helper function for null coalescing
 `%||%` <- function(x, y) if (is.null(x)) y else x
