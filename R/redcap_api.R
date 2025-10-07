@@ -378,8 +378,10 @@ get_eligible_participants <- function() {
   
   tryCatch({
     # Get data from report 14081 (records from last 30 days)
+    # Note: Reports return only the fields configured in the report
+    # If 'name' field is not in the report, we need to fetch it separately
     raw_data <- get_redcap_report(14081)
-    
+
     if (is.null(raw_data) || length(raw_data) == 0) {
       return(data.frame(
         Status = "No data from report 14081",
@@ -456,15 +458,25 @@ get_eligible_participants <- function() {
       ))
     }
     
+    # Extract first name from the r01es_name field
+    first_names <- sapply(eligible_participants$r01es_name, function(full_name) {
+      if (is.null(full_name) || is.na(full_name) || full_name == "") {
+        return("Unknown")
+      }
+      # Get the first word (before first space)
+      first_word <- sub("\\s.*", "", full_name)
+      return(first_word)
+    })
+
     # Return the specific columns for eligible participants
     result <- data.frame(
-      record_id = eligible_participants$record_id,
+      first_name = first_names,
       interview_date = eligible_participants$interview_date,
-      link_to_record_id = paste0("https://redcap.prc.utexas.edu/redcap/redcap_v15.5.6/DataEntry/record_home.php?pid=3385&arm=1&id=", 
+      link_to_record_id = paste0("https://redcap.prc.utexas.edu/redcap/redcap_v15.5.6/DataEntry/record_home.php?pid=3385&arm=1&id=",
                                 eligible_participants$record_id),
       stringsAsFactors = FALSE
     )
-    
+
     return(result)
     
   }, error = function(e) {

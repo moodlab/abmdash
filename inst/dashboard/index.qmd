@@ -204,10 +204,10 @@ eligible_participants <- tryCatch({
 })
 
 # Display the results
-if ("record_id" %in% names(eligible_participants)) {
+if ("first_name" %in% names(eligible_participants)) {
   # We have actual participant data - rename columns and display
   display_data <- eligible_participants
-  names(display_data) <- c("Record ID", "Screen Date", "Link to REDCap Record")
+  names(display_data) <- c("First Name", "Screen Date", "Link to REDCap Record")
   
   display_data |>
     tinytable::tt(caption = "Eligible Participants (Past 30 Days)") |>
