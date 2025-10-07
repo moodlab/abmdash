@@ -48,49 +48,116 @@ calendar_events <- tryCatch({
       }, events$items)
       
       if (length(filtered_events) > 0) {
-        event_list <- lapply(filtered_events, function(event) {
-        # Extract time and date from start datetime
-        if (!is.null(event$start$dateTime)) {
-          # Parse and format the datetime
-          dt <- as.POSIXct(event$start$dateTime, format = "%Y-%m-%dT%H:%M:%S", tz = "UTC")
-          event_date <- as.Date(dt)
-          days_diff <- as.numeric(event_date - Sys.Date())
-          
-          if (days_diff == 0) {
-            start_time <- paste("Today", format(dt, "%I:%M %p"))
-          } else if (days_diff == 1) {
-            start_time <- paste("Tomorrow", format(dt, "%I:%M %p"))
-          } else {
-            day_name <- format(event_date, "%a")
-            start_time <- paste(day_name, format(event_date, "%m/%d"), format(dt, "%I:%M %p"))
-          }
-        } else if (!is.null(event$start$date)) {
-          event_date <- as.Date(event$start$date)
-          days_diff <- as.numeric(event_date - Sys.Date())
-          
-          if (days_diff == 0) {
-            start_time <- "Today (All Day)"
-          } else if (days_diff == 1) {
-            start_time <- "Tomorrow (All Day)"
-          } else {
-            day_name <- format(event_date, "%a")
-            start_time <- paste(day_name, format(event_date, "%m/%d"), "(All Day)")
-          }
-        } else {
-          start_time <- "Unknown"
-        }
-        
-        # Get event summary
-        summary <- if (!is.null(event$summary)) event$summary else "No title"
-        
-        data.frame(
-          Time = start_time,
-          Event = summary,
+        # Pre-allocate data frame for efficiency
+        n_events <- length(filtered_events)
+        events_df <- data.frame(
+          Time = character(n_events),
+          Event = character(n_events),
+          SortDate = as.POSIXct(rep(NA, n_events)),
+          IsToday = logical(n_events),
           stringsAsFactors = FALSE
         )
-        })
-        
-        do.call(rbind, event_list)
+
+        # Fill data frame row by row
+        for (i in seq_along(filtered_events)) {
+          event <- filtered_events[[i]]
+
+          # Extract time and date from start datetime - with guard clauses
+          if (!is.null(event$start$dateTime)) {
+            # Parse and format the datetime
+            dt <- tryCatch({
+              as.POSIXct(event$start$dateTime, format = "%Y-%m-%dT%H:%M:%S", tz = "UTC")
+            }, error = function(e) {
+              # Try alternative parsing if standard format fails
+              as.POSIXct(gsub("Z$", "", event$start$dateTime), tz = "UTC")
+            })
+
+            # Guard clause: ensure valid datetime
+            if (is.na(dt)) {
+              events_df[i, ] <- list(
+                Time = "Invalid DateTime",
+                Event = event$summary %||% "No title",
+                SortDate = as.POSIXct(Sys.time()),
+                IsToday = FALSE
+              )
+              next
+            }
+
+            event_date <- as.Date(dt)
+            days_diff <- as.numeric(event_date - Sys.Date())
+
+            if (days_diff == 0) {
+              start_time <- paste("Today", format(dt, "%I:%M %p"))
+              is_today <- TRUE
+            } else if (days_diff == 1) {
+              start_time <- paste("Tomorrow", format(dt, "%I:%M %p"))
+              is_today <- FALSE
+            } else {
+              day_name <- format(event_date, "%a")
+              start_time <- paste(day_name, format(event_date, "%m/%d"), format(dt, "%I:%M %p"))
+              is_today <- FALSE
+            }
+
+            sort_date <- dt
+          } else if (!is.null(event$start$date)) {
+            event_date <- tryCatch({
+              as.Date(event$start$date)
+            }, error = function(e) {
+              as.Date(Sys.Date())
+            })
+
+            # Guard clause: ensure valid date
+            if (is.na(event_date)) {
+              events_df[i, ] <- list(
+                Time = "Invalid Date",
+                Event = event$summary %||% "No title",
+                SortDate = as.POSIXct(Sys.time()),
+                IsToday = FALSE
+              )
+              next
+            }
+
+            days_diff <- as.numeric(event_date - Sys.Date())
+
+            if (days_diff == 0) {
+              start_time <- "Today (All Day)"
+              is_today <- TRUE
+            } else if (days_diff == 1) {
+              start_time <- "Tomorrow (All Day)"
+              is_today <- FALSE
+            } else {
+              day_name <- format(event_date, "%a")
+              start_time <- paste(day_name, format(event_date, "%m/%d"), "(All Day)")
+              is_today <- FALSE
+            }
+
+            # For all-day events, set sort date to beginning of day
+            sort_date <- as.POSIXct(paste(event_date, "00:00:00"), tz = "UTC")
+          } else {
+            # Guard clause: no valid start time
+            events_df[i, ] <- list(
+              Time = "Unknown",
+              Event = event$summary %||% "No title",
+              SortDate = as.POSIXct(Sys.time()),
+              IsToday = FALSE
+            )
+            next
+          }
+
+          # Get event summary with guard clause
+          summary <- event$summary %||% "No title"
+
+          # Assign to data frame
+          events_df[i, ] <- list(
+            Time = start_time,
+            Event = summary,
+            SortDate = sort_date,
+            IsToday = is_today
+          )
+        }
+
+        # Sort by date/time in chronological order
+        events_df <- events_df[order(events_df$SortDate), ]
       } else {
         data.frame(
           Time = "No ABM events",
@@ -114,9 +181,26 @@ calendar_events <- tryCatch({
   )
 })
 
-# Display calendar events
-calendar_events |>
-  tinytable::tt(caption = "Upcoming Week's Schedule")
+# Display calendar events with highlighting for today's appointments
+if ("IsToday" %in% names(calendar_events) && any(calendar_events$IsToday)) {
+  # Create display table without internal columns
+  display_events <- calendar_events[, c("Time", "Event")]
+
+  # Create tinytable and highlight today's rows
+  today_rows <- which(calendar_events$IsToday)
+  display_events |>
+    tinytable::tt(caption = "Upcoming Week's Schedule") |>
+    tinytable::style_tt(i = today_rows, background = "#e3f2fd", bold = TRUE)
+} else {
+  # No today events or no IsToday column - display without highlighting
+  if ("IsToday" %in% names(calendar_events)) {
+    calendar_events[, c("Time", "Event")] |>
+      tinytable::tt(caption = "Upcoming Week's Schedule")
+  } else {
+    calendar_events |>
+      tinytable::tt(caption = "Upcoming Week's Schedule")
+  }
+}
 ```
 
 :::
