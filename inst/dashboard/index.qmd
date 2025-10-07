@@ -29,7 +29,7 @@ calendar_events <- tryCatch({
       calendar_id = "ff5b00ef944953433c805960d64adae47a456ee0d2515410cc648f65bafc2635@group.calendar.google.com",
       time_min = today_start,
       time_max = next_week_end,
-      max_results = 20
+      max_results = 100
     )
     
     # Debug: Check what we're getting
@@ -46,115 +46,85 @@ calendar_events <- tryCatch({
         summary <- event$summary %||% ""
         grepl("UT Attention Bias Modification", summary, ignore.case = TRUE)
       }, events$items)
-      
-      if (length(filtered_events) > 0) {
-        # Pre-allocate data frame for efficiency
-        n_events <- length(filtered_events)
-        events_df <- data.frame(
-          Time = character(n_events),
-          Event = character(n_events),
-          SortDate = as.POSIXct(rep(NA, n_events)),
-          IsToday = logical(n_events),
-          stringsAsFactors = FALSE
-        )
 
-        # Fill data frame row by row
+      if (length(filtered_events) > 0) {
+        # Build data frame directly - simpler approach
+        Time <- character(length(filtered_events))
+        Event <- character(length(filtered_events))
+        SortDate <- as.POSIXct(rep(NA, length(filtered_events)))
+        IsToday <- logical(length(filtered_events))
+
         for (i in seq_along(filtered_events)) {
           event <- filtered_events[[i]]
 
-          # Extract time and date from start datetime - with guard clauses
+          # Get event summary
+          summary <- if (!is.null(event$summary)) event$summary else "No title"
+
+          # Extract time and date from start datetime
           if (!is.null(event$start$dateTime)) {
-            # Parse and format the datetime
-            dt <- tryCatch({
-              as.POSIXct(event$start$dateTime, format = "%Y-%m-%dT%H:%M:%S", tz = "UTC")
-            }, error = function(e) {
-              # Try alternative parsing if standard format fails
-              as.POSIXct(gsub("Z$", "", event$start$dateTime), tz = "UTC")
-            })
+            # Parse datetime
+            dt <- as.POSIXct(event$start$dateTime, format = "%Y-%m-%dT%H:%M:%S", tz = "UTC")
 
-            # Guard clause: ensure valid datetime
             if (is.na(dt)) {
-              events_df[i, ] <- list(
-                Time = "Invalid DateTime",
-                Event = event$summary %||% "No title",
-                SortDate = as.POSIXct(Sys.time()),
-                IsToday = FALSE
-              )
-              next
+              # Try without Z suffix
+              dt <- as.POSIXct(gsub("Z$", "", event$start$dateTime), tz = "UTC")
             }
 
-            event_date <- as.Date(dt)
-            days_diff <- as.numeric(event_date - Sys.Date())
+            if (!is.na(dt)) {
+              event_date <- as.Date(dt)
+              days_diff <- as.numeric(event_date - Sys.Date())
 
-            if (days_diff == 0) {
-              start_time <- paste("Today", format(dt, "%I:%M %p"))
-              is_today <- TRUE
-            } else if (days_diff == 1) {
-              start_time <- paste("Tomorrow", format(dt, "%I:%M %p"))
-              is_today <- FALSE
-            } else {
-              day_name <- format(event_date, "%a")
-              start_time <- paste(day_name, format(event_date, "%m/%d"), format(dt, "%I:%M %p"))
-              is_today <- FALSE
+              if (days_diff == 0) {
+                Time[i] <- paste("Today", format(dt, "%I:%M %p"))
+                IsToday[i] <- TRUE
+              } else if (days_diff == 1) {
+                Time[i] <- paste("Tomorrow", format(dt, "%I:%M %p"))
+                IsToday[i] <- FALSE
+              } else {
+                day_name <- format(event_date, "%a")
+                Time[i] <- paste(day_name, format(event_date, "%m/%d"), format(dt, "%I:%M %p"))
+                IsToday[i] <- FALSE
+              }
+
+              SortDate[i] <- dt
+              Event[i] <- summary
             }
-
-            sort_date <- dt
           } else if (!is.null(event$start$date)) {
-            event_date <- tryCatch({
-              as.Date(event$start$date)
-            }, error = function(e) {
-              as.Date(Sys.Date())
-            })
+            # All-day event
+            event_date <- as.Date(event$start$date)
 
-            # Guard clause: ensure valid date
-            if (is.na(event_date)) {
-              events_df[i, ] <- list(
-                Time = "Invalid Date",
-                Event = event$summary %||% "No title",
-                SortDate = as.POSIXct(Sys.time()),
-                IsToday = FALSE
-              )
-              next
+            if (!is.na(event_date)) {
+              days_diff <- as.numeric(event_date - Sys.Date())
+
+              if (days_diff == 0) {
+                Time[i] <- "Today (All Day)"
+                IsToday[i] <- TRUE
+              } else if (days_diff == 1) {
+                Time[i] <- "Tomorrow (All Day)"
+                IsToday[i] <- FALSE
+              } else {
+                day_name <- format(event_date, "%a")
+                Time[i] <- paste(day_name, format(event_date, "%m/%d"), "(All Day)")
+                IsToday[i] <- FALSE
+              }
+
+              SortDate[i] <- as.POSIXct(paste(event_date, "00:00:00"), tz = "UTC")
+              Event[i] <- summary
             }
-
-            days_diff <- as.numeric(event_date - Sys.Date())
-
-            if (days_diff == 0) {
-              start_time <- "Today (All Day)"
-              is_today <- TRUE
-            } else if (days_diff == 1) {
-              start_time <- "Tomorrow (All Day)"
-              is_today <- FALSE
-            } else {
-              day_name <- format(event_date, "%a")
-              start_time <- paste(day_name, format(event_date, "%m/%d"), "(All Day)")
-              is_today <- FALSE
-            }
-
-            # For all-day events, set sort date to beginning of day
-            sort_date <- as.POSIXct(paste(event_date, "00:00:00"), tz = "UTC")
-          } else {
-            # Guard clause: no valid start time
-            events_df[i, ] <- list(
-              Time = "Unknown",
-              Event = event$summary %||% "No title",
-              SortDate = as.POSIXct(Sys.time()),
-              IsToday = FALSE
-            )
-            next
           }
-
-          # Get event summary with guard clause
-          summary <- event$summary %||% "No title"
-
-          # Assign to data frame
-          events_df[i, ] <- list(
-            Time = start_time,
-            Event = summary,
-            SortDate = sort_date,
-            IsToday = is_today
-          )
         }
+
+        # Create data frame and remove any rows with NA SortDate
+        events_df <- data.frame(
+          Time = Time,
+          Event = Event,
+          SortDate = SortDate,
+          IsToday = IsToday,
+          stringsAsFactors = FALSE
+        )
+
+        # Remove rows where parsing failed
+        events_df <- events_df[!is.na(events_df$SortDate), ]
 
         # Sort by date/time in chronological order
         events_df <- events_df[order(events_df$SortDate), ]

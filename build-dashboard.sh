@@ -5,7 +5,13 @@ IMAGE_NAME="abmdash"
 PASSWORD="${STATICRYPT_PASSWORD:-}"
 
 echo "🔨 Building Docker image..."
-docker build --platform linux/amd64 -t "$IMAGE_NAME" .
+# Use buildx with cache to persist across Docker restarts
+docker buildx build --platform linux/amd64 \
+  --cache-from type=local,src=/tmp/docker-cache-abmdash \
+  --cache-to type=local,dest=/tmp/docker-cache-abmdash,mode=max \
+  -t "$IMAGE_NAME" \
+  --load \
+  .
 
 echo "📁 Preparing output directory..."
 rm -rf docs

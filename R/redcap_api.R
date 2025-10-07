@@ -364,9 +364,9 @@ get_redcap_report <- function(report_id, format = "json", date_begin = NULL, dat
   do.call(call_redcap_api, params)
 }
 
-#' Get Eligible Participants from Report 11942
+#' Get Eligible Participants from Report 14081
 #'
-#' Filters report 11942 data to find participants who meet eligibility criteria.
+#' Filters report 14081 data to find participants who meet eligibility criteria.
 #' Eligibility requires: r01es_commute == "1" && r01es_austin == "1" && 
 #' r01es_phone == "1" && r01es_computer == "1" && r01es_bpd == "0" && 
 #' r01es_psychotherapy == "0" && phq8score >= 17 && r01es_druguse == "0" && 
@@ -377,12 +377,12 @@ get_redcap_report <- function(report_id, format = "json", date_begin = NULL, dat
 get_eligible_participants <- function() {
   
   tryCatch({
-    # Get data from report 11942 (all records)
-    raw_data <- get_redcap_report(11942)
+    # Get data from report 14081 (records from last 30 days)
+    raw_data <- get_redcap_report(14081)
     
     if (is.null(raw_data) || length(raw_data) == 0) {
       return(data.frame(
-        Status = "No data from report 11942",
+        Status = "No data from report 14081",
         Total_Records = 0,
         Eligible_Count = 0,
         stringsAsFactors = FALSE
