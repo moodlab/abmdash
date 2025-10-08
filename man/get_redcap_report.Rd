@@ -4,12 +4,21 @@
 \alias{get_redcap_report}
 \title{Get REDCap Report}
 \usage{
-get_redcap_report(report_id, format = "json")
+get_redcap_report(
+  report_id,
+  format = "json",
+  date_begin = NULL,
+  date_end = NULL
+)
 }
 \arguments{
 \item{report_id}{Character or numeric report ID}
 
 \item{format}{Character string specifying the format ("json", "csv"). Default is "json"}
+
+\item{date_begin}{Optional start date for filtering (YYYY-MM-DD format)}
+
+\item{date_end}{Optional end date for filtering (YYYY-MM-DD format)}
 }
 \value{
 Data frame or list containing the report data

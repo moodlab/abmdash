@@ -2,7 +2,7 @@
 % Please edit documentation in R/redcap_api.R
 \name{get_eligible_participants}
 \alias{get_eligible_participants}
-\title{Get Eligible Participants from Report 11942}
+\title{Get Eligible Participants from Report 14081}
 \usage{
 get_eligible_participants()
 }
@@ -10,7 +10,7 @@ get_eligible_participants()
 Data frame with de-identified summary of eligible participants
 }
 \description{
-Filters report 11942 data to find participants who meet eligibility criteria.
+Filters report 14081 data to find participants who meet eligibility criteria.
 Eligibility requires: r01es_commute == "1" && r01es_austin == "1" &&
 r01es_phone == "1" && r01es_computer == "1" && r01es_bpd == "0" &&
 r01es_psychotherapy == "0" && phq8score >= 17 && r01es_druguse == "0" &&

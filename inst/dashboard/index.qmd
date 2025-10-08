@@ -2,6 +2,12 @@
 title: "MDL R01 GABM Participant Dashboard"
 ---
 
+```{r}
+#| echo: false
+#| output: asis
+cat(paste0("**Last updated:** ", abmdash::get_central_time(), "\n\n"))
+```
+
 ## Column {width=50%}
 
 ::: {.card title="Upcoming Participant Schedule"}
@@ -62,17 +68,19 @@ calendar_events <- tryCatch({
 
           # Extract time and date from start datetime
           if (!is.null(event$start$dateTime)) {
-            # Parse datetime
-            dt <- as.POSIXct(event$start$dateTime, format = "%Y-%m-%dT%H:%M:%S", tz = "UTC")
+            # Parse datetime from Google Calendar (already in correct timezone)
+            dt <- as.POSIXct(event$start$dateTime, format = "%Y-%m-%dT%H:%M:%S")
 
             if (is.na(dt)) {
               # Try without Z suffix
-              dt <- as.POSIXct(gsub("Z$", "", event$start$dateTime), tz = "UTC")
+              dt <- as.POSIXct(gsub("Z$", "", event$start$dateTime))
             }
 
             if (!is.na(dt)) {
+              # Get today's date in Central Time for comparison
+              today_central <- as.Date(format(Sys.time(), tz = "America/Chicago"))
               event_date <- as.Date(dt)
-              days_diff <- as.numeric(event_date - Sys.Date())
+              days_diff <- as.numeric(event_date - today_central)
 
               if (days_diff == 0) {
                 Time[i] <- paste("Today", format(dt, "%I:%M %p"))

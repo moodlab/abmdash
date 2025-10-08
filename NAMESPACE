@@ -3,6 +3,7 @@
 export(call_redcap_api)
 export(encrypt_dashboard)
 export(get_calendar_events)
+export(get_central_time)
 export(get_eligible_participants)
 export(get_redcap_logs)
 export(get_redcap_metadata)

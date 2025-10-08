@@ -48,3 +48,19 @@ encrypt_dashboard <- function() {
 
   return(invisible(NULL))
 }
+
+#' Get current time in Central Time Zone
+#'
+#' Returns the current date and time formatted in Central Time (US/Central)
+#' with AM/PM format
+#'
+#' @return A character string with the formatted date and time
+#' @export
+#'
+#' @examples
+#' get_central_time()
+get_central_time <- function() {
+  # Get current time in Central Time with AM/PM format
+  ct_time <- format(Sys.time(), tz = "America/Chicago", format = "%Y-%m-%d %I:%M %p %Z")
+  return(ct_time)
+}
