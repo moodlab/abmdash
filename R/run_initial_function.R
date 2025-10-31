@@ -64,3 +64,41 @@ get_central_time <- function() {
   ct_time <- format(Sys.time(), tz = "America/Chicago", format = "%Y-%m-%d %I:%M %p %Z")
   return(ct_time)
 }
+
+#' Get enrollment targets data
+#'
+#' Reads the enrollment targets CSV file and returns it as a data frame
+#'
+#' @return A data frame with enrollment targets by date
+#' @export
+#'
+#' @examples
+#' get_enrollment_targets()
+get_enrollment_targets <- function() {
+  # Find the CSV file - try multiple possible locations
+  possible_paths <- c(
+    system.file("extdata", "enrollment_targets.csv", package = "abmdash"),
+    "inst/extdata/enrollment_targets.csv",
+    "../inst/extdata/enrollment_targets.csv",
+    "data/enrollment_targets.csv",
+    "../data/enrollment_targets.csv",
+    "../../inst/extdata/enrollment_targets.csv"
+  )
+
+  csv_path <- NULL
+  for (path in possible_paths) {
+    if (file.exists(path) && path != "") {
+      csv_path <- path
+      break
+    }
+  }
+
+  if (is.null(csv_path)) {
+    stop("Could not find enrollment_targets.csv file")
+  }
+
+  # Read the CSV file
+  enrollment_data <- read.csv(csv_path, stringsAsFactors = FALSE)
+
+  return(enrollment_data)
+}

@@ -8,7 +8,11 @@ title: "MDL R01 GABM Participant Dashboard"
 cat(paste0("**Last updated:** ", abmdash::get_central_time(), "\n\n"))
 ```
 
-## Column {width=50%}
+## Row {.tabset}
+
+### Participant Tracking
+
+#### Column {width=50%}
 
 ::: {.card title="Upcoming Participant Schedule"}
 
@@ -215,8 +219,8 @@ eligible_participants <- tryCatch({
 if ("first_name" %in% names(eligible_participants)) {
   # We have actual participant data - rename columns and display
   display_data <- eligible_participants
-  names(display_data) <- c("First Name", "Screen Date", "Link to REDCap Record")
-  
+  names(display_data) <- c("First Name", "Phone Number", "Screen Date", "Link to REDCap Record")
+
   display_data |>
     tinytable::tt(caption = "Eligible Participants (Past 30 Days)") |>
     tinytable::format_tt(
@@ -232,7 +236,7 @@ if ("first_name" %in% names(eligible_participants)) {
 
 :::
 
-## Column {width=50%}
+#### Column {width=50%}
 
 ::: {.card title="Status of Follow-Up Surveys"}
 
@@ -316,8 +320,263 @@ if (nrow(upcoming_followups) > 0) {
   
   tt_table
 } else {
-  data.frame(Message = "No follow-ups due in the next 2 weeks") |> 
+  data.frame(Message = "No follow-ups due in the next 2 weeks") |>
     tinytable::tt()
+}
+```
+:::
+
+### Enrollment
+
+#### Column {width=50%}
+
+::: {.card title="Weekly Screening Statistics"}
+
+```{r}
+# Get weekly screening statistics
+weekly_stats <- tryCatch({
+  token <- Sys.getenv("REDCAP_API_TOKEN")
+
+  if (token == "" || is.na(token)) {
+    # Show message when REDCap not configured
+    data.frame(
+      Metric = c("Total Screenings", "Eligible Participants", "Eligible Hispanic Participants", "Weekly Target", "vs Target"),
+      Count = c("N/A", "N/A", "N/A", "N/A", "N/A"),
+      stringsAsFactors = FALSE
+    )
+  } else {
+    # Get actual weekly stats
+    stats <- abmdash::get_weekly_screening_stats()
+
+    # Get enrollment targets to find current month's target
+    enrollment_data <- abmdash::get_enrollment_targets()
+
+    # Get current month and year
+    current_date <- format(Sys.Date(), "1-%b-%y")
+
+    # Find current month's target
+    current_month_row <- enrollment_data[enrollment_data$Date == current_date, ]
+
+    if (nrow(current_month_row) > 0) {
+      monthly_target <- as.numeric(current_month_row$Target)
+      weekly_target <- ceiling(monthly_target / 4)
+      difference <- stats$eligible_count - weekly_target
+      vs_target <- ifelse(difference >= 0,
+                         paste0("+", difference),
+                         as.character(difference))
+    } else {
+      weekly_target <- "N/A"
+      vs_target <- "N/A"
+    }
+
+    data.frame(
+      Metric = c("Total Screenings (Past 7 Days)", "Eligible Participants", "Eligible Hispanic Participants", "Weekly Target (Monthly/4)", "vs Target"),
+      Count = c(stats$total_screenings, stats$eligible_count, stats$hispanic_count, weekly_target, vs_target),
+      stringsAsFactors = FALSE
+    )
+  }
+}, error = function(e) {
+  data.frame(
+    Metric = "Error",
+    Count = paste("Error:", substr(e$message, 1, 30)),
+    stringsAsFactors = FALSE
+  )
+})
+
+# Display the weekly statistics
+weekly_stats |>
+  tinytable::tt(caption = "Screening Summary (Past 7 Days)")
+```
+
+:::
+
+::: {.card title="Total Enrollment Progress"}
+
+```{r}
+#| output: asis
+# Get enrollment statistics
+enrollment_stats <- tryCatch({
+  abmdash::get_enrollment_stats()
+}, error = function(e) {
+  list(
+    total_enrolled = 0,
+    weekly_enrolled = 0,
+    current_month = format(Sys.Date(), "%B %Y"),
+    error = e$message
+  )
+})
+
+# Get current month's targets from enrollment_targets.csv
+current_date <- format(Sys.Date(), "1-%b-%y")
+enrollment_targets <- abmdash::get_enrollment_targets()
+
+# Find the target for the current month
+current_month_target <- enrollment_targets[enrollment_targets$Date == current_date, ]
+
+if (nrow(current_month_target) > 0) {
+  monthly_target <- as.numeric(current_month_target$Target)
+  total_target <- as.numeric(current_month_target$Total)
+} else {
+  # If no exact match, find the most recent target
+  enrollment_targets$parsed_date <- as.Date(paste0("01-", enrollment_targets$Date), format = "%d-%d-%b-%y")
+  past_targets <- enrollment_targets[enrollment_targets$parsed_date <= Sys.Date(), ]
+  if (nrow(past_targets) > 0) {
+    last_row <- past_targets[nrow(past_targets), ]
+    monthly_target <- as.numeric(last_row$Target)
+    total_target <- as.numeric(last_row$Total)
+  } else {
+    monthly_target <- 15
+    total_target <- 600
+  }
+}
+
+# Calculate weekly target (monthly / 4, rounded up)
+weekly_target <- ceiling(monthly_target / 4)
+
+# Calculate percentages
+total_pct <- if (total_target > 0) min(round((enrollment_stats$total_enrolled / total_target) * 100, 1), 100) else 0
+weekly_pct <- if (weekly_target > 0) min(round((enrollment_stats$weekly_enrolled / weekly_target) * 100, 1), 100) else 0
+
+# Determine color based on percentage
+total_color <- if (total_pct >= 80) "#2E7D32" else if (total_pct >= 50) "#F57C00" else "#C62828"
+
+# Create HTML progress bar for total enrollment
+cat(paste0(
+  '<div style="text-align: center; padding: 20px;">',
+  '<div style="font-size: 48px; font-weight: bold; color: ', total_color, ';">',
+  enrollment_stats$total_enrolled, ' / ', total_target,
+  '</div>',
+  '<div style="font-size: 18px; margin: 10px 0; color: #666;">',
+  'Total Enrolled (', total_pct, '%)',
+  '</div>',
+  '<div style="background-color: #e0e0e0; border-radius: 10px; height: 30px; margin: 20px 0; overflow: hidden;">',
+  '<div style="background-color: ', total_color, '; height: 100%; width: ', total_pct, '%; transition: width 0.3s;"></div>',
+  '</div>',
+  '<div style="font-size: 14px; color: #999;">',
+  ifelse(enrollment_stats$total_enrolled >= total_target,
+         '✓ Goal Reached!',
+         paste0('Need ', total_target - enrollment_stats$total_enrolled, ' more to reach goal')),
+  '</div>',
+  '</div>'
+))
+```
+
+:::
+
+#### Column {width=50%}
+
+::: {.card title="Weekly Enrollment (Past 7 Days)"}
+
+```{r}
+#| output: asis
+# Determine color based on percentage
+weekly_color <- if (weekly_pct >= 80) "#1976D2" else if (weekly_pct >= 50) "#F57C00" else "#C62828"
+
+# Create HTML progress bar for weekly enrollment
+cat(paste0(
+  '<div style="text-align: center; padding: 20px;">',
+  '<div style="font-size: 48px; font-weight: bold; color: ', weekly_color, ';">',
+  enrollment_stats$weekly_enrolled, ' / ', weekly_target,
+  '</div>',
+  '<div style="font-size: 18px; margin: 10px 0; color: #666;">',
+  'Past 7 Days (', weekly_pct, '%)',
+  '</div>',
+  '<div style="background-color: #e0e0e0; border-radius: 10px; height: 30px; margin: 20px 0; overflow: hidden;">',
+  '<div style="background-color: ', weekly_color, '; height: 100%; width: ', weekly_pct, '%; transition: width 0.3s;"></div>',
+  '</div>',
+  '<div style="font-size: 14px; color: #999;">',
+  'Weekly target: ', monthly_target, ' ÷ 4 = ', weekly_target, ' participants<br>',
+  ifelse(enrollment_stats$weekly_enrolled >= weekly_target,
+         '✓ Weekly Goal Reached!',
+         paste0('Need ', weekly_target - enrollment_stats$weekly_enrolled, ' more this week')),
+  '</div>',
+  '</div>'
+))
+```
+
+:::
+
+::: {.card title="Monthly Enrollment vs Targets"}
+
+```{r}
+# Get enrollment targets data
+enrollment_data <- tryCatch({
+  abmdash::get_enrollment_targets()
+}, error = function(e) {
+  data.frame(
+    Error = paste("Could not load enrollment data:", e$message),
+    stringsAsFactors = FALSE
+  )
+})
+
+# Combine enrollment breakdown with targets
+if (!is.null(enrollment_stats$monthly_breakdown) && nrow(enrollment_stats$monthly_breakdown) > 0 &&
+    "Date" %in% names(enrollment_data)) {
+
+  # Parse dates from enrollment_targets
+  enrollment_data$month_key <- format(as.Date(paste0("01-", enrollment_data$Date), format = "%d-%d-%b-%y"), "%Y-%m")
+  enrollment_data$month_display <- format(as.Date(paste0("01-", enrollment_data$Date), format = "%d-%d-%b-%y"), "%B %Y")
+
+  # Merge actual enrollments with targets
+  merged_data <- merge(
+    enrollment_data[, c("month_key", "month_display", "Target")],
+    enrollment_stats$monthly_breakdown,
+    by.x = "month_key",
+    by.y = "month",
+    all.x = TRUE
+  )
+
+  # Replace NA with 0 for months with no enrollments
+  merged_data$count[is.na(merged_data$count)] <- 0
+
+  # Calculate percentage
+  merged_data$percentage <- ifelse(
+    merged_data$Target > 0,
+    round((merged_data$count / merged_data$Target) * 100, 1),
+    0
+  )
+
+  # Filter to only show months up to current month (no future months)
+  current_month_key <- format(Sys.Date(), "%Y-%m")
+  merged_data <- merged_data[merged_data$month_key <= current_month_key, ]
+
+  # Sort by date descending (most recent first)
+  sort_order <- order(merged_data$month_key, decreasing = TRUE)
+  merged_data <- merged_data[sort_order, ]
+
+  # Create display table from sorted data
+  display_table <- data.frame(
+    Month = merged_data$month_display,
+    Target = merged_data$Target,
+    Actual = merged_data$count,
+    Percent = paste0(merged_data$percentage, "%"),
+    stringsAsFactors = FALSE
+  )
+
+  # Create table with conditional formatting
+  tt_table <- display_table |>
+    tinytable::tt(caption = "Monthly Enrollment Progress")
+
+  # Highlight rows where percentage >= 80% (green)
+  success_rows <- which(merged_data$percentage >= 80)
+  if (length(success_rows) > 0) {
+    tt_table <- tt_table |>
+      tinytable::style_tt(i = success_rows, background = "#e8f5e9")
+  }
+
+  # Highlight rows where percentage < 50% and target > 0 (red)
+  warning_rows <- which(merged_data$percentage < 50 & merged_data$Target > 0)
+  if (length(warning_rows) > 0) {
+    tt_table <- tt_table |>
+      tinytable::style_tt(i = warning_rows, background = "#ffebee")
+  }
+
+  tt_table
+
+} else {
+  # Fallback: just show targets if no enrollment breakdown available
+  enrollment_data |>
+    tinytable::tt(caption = "Monthly Enrollment Targets")
 }
 ```
 :::

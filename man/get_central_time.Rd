@@ -11,6 +11,7 @@ A character string with the formatted date and time
 }
 \description{
 Returns the current date and time formatted in Central Time (US/Central)
+with AM/PM format
 }
 \examples{
 get_central_time()
