@@ -808,6 +808,11 @@ trad_compliance <- tryCatch({
     diagnostics$login_success <- login_result$success
     diagnostics$login_error <- if (!is.null(login_result$error)) substr(login_result$error, 1, 200) else "none"
 
+    # Check if cookie file exists and has content
+    cookie_path <- file.path(tempdir(), "abs_session_cookies.txt")
+    diagnostics$cookie_file_exists <- file.exists(cookie_path)
+    diagnostics$cookie_file_size <- if (file.exists(cookie_path)) file.size(cookie_path) else 0
+
     if (!login_result$success) {
       stop("Login failed: ", login_result$error)
     }
@@ -986,7 +991,9 @@ trad_compliance <- tryCatch({
     if (!is.null(diagnostics$login_success)) {
       diag_parts <- append(diag_parts, list(
         data.frame(Info = "Login Success", Value = as.character(diagnostics$login_success), stringsAsFactors = FALSE),
-        data.frame(Info = "Login Error", Value = diagnostics$login_error %||% "none", stringsAsFactors = FALSE)
+        data.frame(Info = "Login Error", Value = diagnostics$login_error %||% "none", stringsAsFactors = FALSE),
+        data.frame(Info = "Cookie File Exists", Value = as.character(diagnostics$cookie_file_exists %||% FALSE), stringsAsFactors = FALSE),
+        data.frame(Info = "Cookie File Size", Value = as.character(diagnostics$cookie_file_size %||% 0), stringsAsFactors = FALSE)
       ))
     }
 
