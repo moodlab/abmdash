@@ -843,18 +843,19 @@ trad_compliance <- tryCatch({
     session <- login_result$session
     diagnostics$session_class <- class(session)[1]
 
-    # DEFINITIVE TEST: Make request to httpbin to see what cookies are actually sent
+    # DEFINITIVE TEST: Make request to abs.la.utexas.edu to see if cookies are sent
+    # (httpbin.org won't work - different domain!)
     test_req <- session |>
-      httr2::req_url("https://httpbin.org/headers") |>
+      httr2::req_url("https://abs.la.utexas.edu/admin/dashboard") |>
       httr2::req_error(is_error = function(resp) FALSE) |>
       httr2::req_perform()
 
-    if (httr2::resp_status(test_req) == 200) {
-      test_body <- httr2::resp_body_json(test_req)
-      diagnostics$httpbin_cookies_sent <- test_body$headers$Cookie %||% "NONE"
-    } else {
-      diagnostics$httpbin_cookies_sent <- "httpbin request failed"
-    }
+    test_status <- httr2::resp_status(test_req)
+    test_content_type <- httr2::resp_header(test_req, "content-type") %||% "unknown"
+    # If we're authenticated, we should get HTML dashboard (200)
+    # If not authenticated, we get redirected to login (302) or login page HTML
+    diagnostics$test_request_status <- test_status
+    diagnostics$test_request_authenticated <- (test_status == 200 && grepl("html", test_content_type, ignore.case = TRUE))
 
     # Check if session has extracted cookies attribute
     session_cookies <- attr(session, "session_cookies")
@@ -1064,7 +1065,8 @@ trad_compliance <- tryCatch({
     if (!is.null(diagnostics$session_class)) {
       diag_parts <- append(diag_parts, list(
         data.frame(Info = "Session Class", Value = diagnostics$session_class %||% "unknown", stringsAsFactors = FALSE),
-        data.frame(Info = "HTTPBin Cookies Sent", Value = substr(diagnostics$httpbin_cookies_sent %||% "unknown", 1, 300), stringsAsFactors = FALSE),
+        data.frame(Info = "Test Request Status", Value = as.character(diagnostics$test_request_status %||% "unknown"), stringsAsFactors = FALSE),
+        data.frame(Info = "Test Request Authenticated", Value = as.character(diagnostics$test_request_authenticated %||% FALSE), stringsAsFactors = FALSE),
         data.frame(Info = "Has Cookies Attr", Value = as.character(diagnostics$has_cookies_attr %||% FALSE), stringsAsFactors = FALSE),
         data.frame(Info = "Cookies Attr Length", Value = as.character(diagnostics$cookies_attr_length %||% 0), stringsAsFactors = FALSE),
         data.frame(Info = "Cookies Attr Class", Value = diagnostics$cookies_attr_class %||% "unknown", stringsAsFactors = FALSE),
