@@ -815,13 +815,23 @@ trad_compliance <- tryCatch({
     diagnostics$stage <- "downloading CSV"
     session <- login_result$session
 
+    # Check if session has cookie preservation
+    diagnostics$session_class <- class(session)[1]
+
     # Try to download CSV and capture response details
     csv_result <- tryCatch({
-      response <- session |>
+      # Get the request object to inspect
+      req <- session |>
         httr2::req_url_path("/admin/test/download-csv-all") |>
         httr2::req_options(http_version = 2) |>
-        httr2::req_error(is_error = function(resp) FALSE) |>
-        httr2::req_perform()
+        httr2::req_error(is_error = function(resp) FALSE)
+
+      # Capture the URL being requested
+      req_url <- httr2::req_dry_run(req, quiet = TRUE, redact_headers = FALSE)$url
+      diagnostics$csv_url <- req_url
+
+      # Perform the request
+      response <- httr2::req_perform(req)
 
       status <- httr2::resp_status(response)
       content_type <- httr2::resp_header(response, "content-type") %||% "unknown"
@@ -988,13 +998,25 @@ trad_compliance <- tryCatch({
       ))
     }
 
+    # Session diagnostics
+    if (!is.null(diagnostics$session_class)) {
+      diag_parts <- append(diag_parts, list(
+        data.frame(Info = "Session Class", Value = diagnostics$session_class %||% "unknown", stringsAsFactors = FALSE)
+      ))
+    }
+
     # CSV download diagnostics
     if (!is.null(diagnostics$csv_status)) {
       diag_parts <- append(diag_parts, list(
+        data.frame(Info = "CSV URL", Value = diagnostics$csv_url %||% "unknown", stringsAsFactors = FALSE),
         data.frame(Info = "CSV Status", Value = as.character(diagnostics$csv_status), stringsAsFactors = FALSE),
         data.frame(Info = "Content-Type", Value = diagnostics$csv_content_type %||% "unknown", stringsAsFactors = FALSE),
         data.frame(Info = "Body Length", Value = as.character(diagnostics$csv_body_length %||% 0), stringsAsFactors = FALSE),
-        data.frame(Info = "Body Preview", Value = substr(diagnostics$csv_body_preview %||% "", 1, 500), stringsAsFactors = FALSE)
+        data.frame(Info = "HTML Title", Value = {
+          body <- diagnostics$csv_body_preview %||% ""
+          title_match <- regmatches(body, regexpr("<title>([^<]*)</title>", body, ignore.case = TRUE, perl = TRUE))
+          if (length(title_match) > 0) gsub("</?title>", "", title_match[1], ignore.case = TRUE) else "N/A"
+        }, stringsAsFactors = FALSE)
       ))
     }
 
