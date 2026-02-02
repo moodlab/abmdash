@@ -794,12 +794,61 @@ trad_compliance <- tryCatch({
       Message = "ABS credentials not configured (ABS_USERNAME or ABS_PASSWORD missing)"
     ) |> tinytable::tt()
   } else {
-    # Login and download data
-    diagnostics$stage <- "logging in"
-    session <- abmdash::abs_login(check_connection = FALSE)
+    # Login and download data with detailed diagnostics
+    diagnostics$stage <- "attempting login"
+
+    # Try to login and capture detailed information
+    login_result <- tryCatch({
+      session <- abmdash::abs_login(check_connection = FALSE)
+      list(success = TRUE, session = session, error = NULL)
+    }, error = function(e) {
+      list(success = FALSE, session = NULL, error = as.character(e$message))
+    })
+
+    diagnostics$login_success <- login_result$success
+    diagnostics$login_error <- if (!is.null(login_result$error)) substr(login_result$error, 1, 200) else "none"
+
+    if (!login_result$success) {
+      stop("Login failed: ", login_result$error)
+    }
 
     diagnostics$stage <- "downloading CSV"
-    trad_data <- abmdash::download_abs_csv(session, csv_path = "/admin/test/download-csv-all")
+    session <- login_result$session
+
+    # Try to download CSV and capture response details
+    csv_result <- tryCatch({
+      response <- session |>
+        httr2::req_url_path("/admin/test/download-csv-all") |>
+        httr2::req_options(http_version = 2) |>
+        httr2::req_error(is_error = function(resp) FALSE) |>
+        httr2::req_perform()
+
+      status <- httr2::resp_status(response)
+      content_type <- httr2::resp_header(response, "content-type") %||% "unknown"
+      body <- httr2::resp_body_string(response)
+
+      list(
+        status = status,
+        content_type = content_type,
+        body_length = nchar(body),
+        body_preview = substr(body, 1, 500),
+        body = body
+      )
+    }, error = function(e) {
+      list(status = "error", error = as.character(e$message))
+    })
+
+    diagnostics$csv_status <- csv_result$status
+    diagnostics$csv_content_type <- csv_result$content_type %||% "unknown"
+    diagnostics$csv_body_length <- csv_result$body_length %||% 0
+    diagnostics$csv_body_preview <- csv_result$body_preview %||% "none"
+
+    if (csv_result$status != 200) {
+      stop("CSV download failed with status: ", csv_result$status)
+    }
+
+    # Parse the CSV
+    trad_data <- utils::read.csv(text = csv_result$body, stringsAsFactors = FALSE)
 
     # Store diagnostics
     diagnostics$raw_rows <- nrow(trad_data)
@@ -925,40 +974,54 @@ trad_compliance <- tryCatch({
   }
 }, error = function(e) {
   # Display error with all diagnostic information
-  diag_info <- if (exists("diagnostics") && is.environment(diagnostics)) {
-    parts <- c(
-      sprintf("Stage: %s", diagnostics$stage %||% "unknown"),
-      sprintf("Raw rows: %s", diagnostics$raw_rows %||% "N/A"),
-      sprintf("Columns: %s", diagnostics$raw_cols %||% "N/A"),
-      sprintf("Has start_time: %s", diagnostics$has_start_time %||% "N/A"),
-      sprintf("start_time class: %s", diagnostics$start_time_class %||% "N/A"),
-      sprintf("start_time length: %s", diagnostics$start_time_length %||% "N/A"),
-      sprintf("start_time sample: %s", diagnostics$start_time_sample %||% "N/A"),
-      sprintf("Filtered rows: %s", diagnostics$filtered_rows %||% "N/A"),
-      sprintf("Session 1 rows: %s", diagnostics$session1_rows %||% "N/A"),
-      sprintf("First sessions: %s", diagnostics$first_sessions_rows %||% "N/A"),
-      sprintf("Active rows: %s", diagnostics$active_rows %||% "N/A"),
-      sprintf("Session counts: %s", diagnostics$session_counts_rows %||% "N/A"),
-      sprintf("IDs overlap: %s", diagnostics$ids_overlap %||% "N/A"),
-      sprintf("Active IDs: %s", diagnostics$active_ids_sample %||% "N/A"),
-      sprintf("Session IDs: %s", diagnostics$session_ids_sample %||% "N/A"),
-      sprintf("Merged rows: %s", diagnostics$merged_rows %||% "N/A"),
-      sprintf("NA count: %s", diagnostics$na_count %||% "N/A")
+  if (exists("diagnostics") && is.environment(diagnostics)) {
+    # Build comprehensive diagnostic output
+    diag_parts <- list(
+      data.frame(Info = "Stage", Value = diagnostics$stage %||% "unknown", stringsAsFactors = FALSE)
     )
-    paste(parts, collapse = " | ")
-  } else {
-    "No diagnostics available"
-  }
 
-  data.frame(
-    Info = c("Error", "Diagnostics"),
-    Value = c(
-      substr(as.character(e$message), 1, 300),
-      substr(diag_info, 1, 500)
-    ),
-    stringsAsFactors = FALSE
-  ) |>
-    tinytable::tt()
+    # Login diagnostics
+    if (!is.null(diagnostics$login_success)) {
+      diag_parts <- append(diag_parts, list(
+        data.frame(Info = "Login Success", Value = as.character(diagnostics$login_success), stringsAsFactors = FALSE),
+        data.frame(Info = "Login Error", Value = diagnostics$login_error %||% "none", stringsAsFactors = FALSE)
+      ))
+    }
+
+    # CSV download diagnostics
+    if (!is.null(diagnostics$csv_status)) {
+      diag_parts <- append(diag_parts, list(
+        data.frame(Info = "CSV Status", Value = as.character(diagnostics$csv_status), stringsAsFactors = FALSE),
+        data.frame(Info = "Content-Type", Value = diagnostics$csv_content_type %||% "unknown", stringsAsFactors = FALSE),
+        data.frame(Info = "Body Length", Value = as.character(diagnostics$csv_body_length %||% 0), stringsAsFactors = FALSE),
+        data.frame(Info = "Body Preview", Value = substr(diagnostics$csv_body_preview %||% "", 1, 500), stringsAsFactors = FALSE)
+      ))
+    }
+
+    # Data processing diagnostics
+    if (!is.null(diagnostics$raw_rows)) {
+      diag_parts <- append(diag_parts, list(
+        data.frame(Info = "Parsed Rows", Value = as.character(diagnostics$raw_rows), stringsAsFactors = FALSE),
+        data.frame(Info = "Columns", Value = substr(diagnostics$raw_cols %||% "N/A", 1, 200), stringsAsFactors = FALSE)
+      ))
+    }
+
+    # Combine all diagnostics
+    diag_df <- do.call(rbind, diag_parts)
+    diag_df <- rbind(
+      data.frame(Info = "Error Message", Value = substr(as.character(e$message), 1, 500), stringsAsFactors = FALSE),
+      diag_df
+    )
+
+    diag_df |> tinytable::tt()
+  } else {
+    data.frame(
+      Info = "Error",
+      Value = substr(as.character(e$message), 1, 500),
+      stringsAsFactors = FALSE
+    ) |>
+      tinytable::tt()
+  }
 })
 
 trad_compliance
