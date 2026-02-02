@@ -843,9 +843,10 @@ trad_compliance <- tryCatch({
     diagnostics$csv_content_type <- csv_result$content_type %||% "unknown"
     diagnostics$csv_body_length <- csv_result$body_length %||% 0
     diagnostics$csv_body_preview <- csv_result$body_preview %||% "none"
+    diagnostics$csv_error <- csv_result$error %||% "none"
 
     if (csv_result$status != 200) {
-      stop("CSV download failed with status: ", csv_result$status)
+      stop("CSV download failed: ", csv_result$error %||% paste("status", csv_result$status))
     }
 
     # Parse the CSV
@@ -1000,13 +1001,9 @@ trad_compliance <- tryCatch({
     if (!is.null(diagnostics$csv_status)) {
       diag_parts <- append(diag_parts, list(
         data.frame(Info = "CSV Status", Value = as.character(diagnostics$csv_status), stringsAsFactors = FALSE),
+        data.frame(Info = "CSV Error", Value = substr(diagnostics$csv_error %||% "none", 1, 300), stringsAsFactors = FALSE),
         data.frame(Info = "Content-Type", Value = diagnostics$csv_content_type %||% "unknown", stringsAsFactors = FALSE),
-        data.frame(Info = "Body Length", Value = as.character(diagnostics$csv_body_length %||% 0), stringsAsFactors = FALSE),
-        data.frame(Info = "HTML Title", Value = {
-          body <- diagnostics$csv_body_preview %||% ""
-          title_match <- regmatches(body, regexpr("<title>([^<]*)</title>", body, ignore.case = TRUE, perl = TRUE))
-          if (length(title_match) > 0) gsub("</?title>", "", title_match[1], ignore.case = TRUE) else "N/A"
-        }, stringsAsFactors = FALSE)
+        data.frame(Info = "Body Length", Value = as.character(diagnostics$csv_body_length %||% 0), stringsAsFactors = FALSE)
       ))
     }
 
