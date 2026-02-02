@@ -62,7 +62,7 @@ abs_login <- function(base_url = "https://abs.la.utexas.edu",
     httr2::req_options(
       ssl_verifypeer = 0,
       ssl_verifyhost = 0,
-      http_version = 2  # Force HTTP/1.1
+      http_version = 0  # Auto (let curl decide)
     ) |>
     httr2::req_user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36")
 
@@ -248,7 +248,7 @@ test_abs_connection <- function(base_url = "https://abs.la.utexas.edu", verbose 
       httr2::req_options(
         ssl_verifypeer = 0,
         ssl_verifyhost = 0,
-        http_version = 2  # Force HTTP/1.1 (0=default, 2=HTTP/1.1, 3=HTTP/2)
+        http_version = 0  # Auto (let curl decide) (0=default, 2=HTTP/1.1, 3=HTTP/2)
       ) |>
       httr2::req_error(is_error = function(resp) FALSE) |>
       httr2::req_perform()
