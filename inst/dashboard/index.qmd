@@ -817,9 +817,19 @@ trad_compliance <- tryCatch({
                                  FUN = length)
       names(session_counts) <- c("id", "total_sessions")
 
-      # Merge
-      active <- merge(active, session_counts, by = "id", all.x = TRUE)
-      active$total_sessions[is.na(active$total_sessions)] <- 0
+      # Merge - use safer approach
+      if (nrow(session_counts) > 0) {
+        active <- merge(active, session_counts, by = "id", all.x = TRUE)
+        # Replace NA with 0
+        if ("total_sessions" %in% names(active)) {
+          active$total_sessions[is.na(active$total_sessions)] <- 0
+        } else {
+          active$total_sessions <- 0
+        }
+      } else {
+        # No sessions found - add total_sessions column with 0
+        active$total_sessions <- 0
+      }
 
       # Calculate expected and status
       active$current_week <- pmin(ceiling(active$weeks_from_start), 4)
