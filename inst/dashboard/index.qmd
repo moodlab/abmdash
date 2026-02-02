@@ -819,43 +819,9 @@ trad_compliance <- tryCatch({
 
     diagnostics$stage <- "downloading CSV"
     session <- login_result$session
-    diagnostics$session_class <- class(session)[1]
 
-    # Try to download CSV and capture response details
-    csv_result <- tryCatch({
-      response <- session |>
-        httr2::req_url_path("/admin/test/download-csv-all") |>
-        httr2::req_options(http_version = 2) |>
-        httr2::req_error(is_error = function(resp) FALSE) |>
-        httr2::req_perform()
-
-      status <- httr2::resp_status(response)
-      content_type <- httr2::resp_header(response, "content-type") %||% "unknown"
-      body <- httr2::resp_body_string(response)
-
-      list(
-        status = status,
-        content_type = content_type,
-        body_length = nchar(body),
-        body_preview = substr(body, 1, 500),
-        body = body
-      )
-    }, error = function(e) {
-      list(status = "error", error = as.character(e$message))
-    })
-
-    diagnostics$csv_status <- csv_result$status
-    diagnostics$csv_content_type <- csv_result$content_type %||% "unknown"
-    diagnostics$csv_body_length <- csv_result$body_length %||% 0
-    diagnostics$csv_body_preview <- csv_result$body_preview %||% "none"
-    diagnostics$csv_error <- csv_result$error %||% "none"
-
-    if (csv_result$status != 200) {
-      stop("CSV download failed: ", csv_result$error %||% paste("status", csv_result$status))
-    }
-
-    # Parse the CSV
-    trad_data <- utils::read.csv(text = csv_result$body, stringsAsFactors = FALSE)
+    # Use the package function which works locally
+    trad_data <- abmdash::download_abs_csv(session, csv_path = "/admin/test/download-csv-all")
 
     # Store diagnostics
     diagnostics$raw_rows <- nrow(trad_data)
