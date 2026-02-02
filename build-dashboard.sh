@@ -84,7 +84,21 @@ docker run --rm \
       cat('Installing abmdash package...\n');
       install.packages('/project', repos=NULL, type='source', dependencies=FALSE);
       cat('abmdash installation completed\n');
-      
+
+      cat('=== LOCAL COOKIE FILE TEST ===\n');
+      session <- abmdash::abs_login(check_connection = FALSE);
+      cookie_file <- file.path(tempdir(), 'abs_session_cookies.txt');
+      if (file.exists(cookie_file)) {
+        cat('Cookie file exists, size:', file.size(cookie_file), 'bytes\n');
+        contents <- readLines(cookie_file, warn = FALSE);
+        cat('Cookie file contents:\n');
+        cat(contents, sep='\n');
+        cat('\nNumber of cookie lines (non-comment):', sum(!grepl('^#', contents)), '\n');
+      } else {
+        cat('Cookie file does NOT exist\n');
+      }
+      cat('==============================\n\n');
+
       library(quarto);
       setwd('/tmp');
       file.copy('/project/inst/dashboard/index.qmd', '/tmp/index.qmd', overwrite = TRUE);

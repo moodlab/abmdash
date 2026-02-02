@@ -863,10 +863,9 @@ trad_compliance <- tryCatch({
       cookie_string <- paste(cookie_values, collapse="; ")
       diagnostics$cookie_preview <- substr(cookie_string, 1, 200)
 
-      # Make request with explicit Cookie header
+      # Make request using session's cookie file (don't override with manual header)
       response <- session |>
         httr2::req_url_path("/admin/test/download-csv-all") |>
-        httr2::req_headers(Cookie = cookie_string) |>
         httr2::req_options(http_version = 0) |>  # Auto
         httr2::req_error(is_error = function(resp) FALSE) |>
         httr2::req_perform()
