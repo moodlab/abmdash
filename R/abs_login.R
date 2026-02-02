@@ -369,16 +369,16 @@ download_abs_csv <- function(session,
     csv_content <- httr2::resp_body_string(response)
 
     # Check if we got HTML instead of CSV (indicates login failure or error page)
-    if (grepl("^\\s*<!DOCTYPE|^\\s*<html", csv_content, ignore.case = TRUE)) {
+    if (grepl("<!DOCTYPE\\s+html|<html", csv_content, ignore.case = TRUE)) {
       # Extract any error message from the HTML if possible
       error_match <- regmatches(csv_content, regexpr("<title>([^<]+)</title>", csv_content, ignore.case = TRUE))
       if (length(error_match) > 0) {
         stop("Received HTML page instead of CSV. Title: ", error_match[1],
              "\nThis usually means authentication failed or session expired.",
-             "\nFirst 200 chars: ", substr(csv_content, 1, 200))
+             "\nFirst 500 chars: ", substr(csv_content, 1, 500))
       } else {
         stop("Received HTML page instead of CSV (authentication may have failed).",
-             "\nFirst 200 chars: ", substr(csv_content, 1, 200))
+             "\nFirst 500 chars: ", substr(csv_content, 1, 500))
       }
     }
 
@@ -390,6 +390,15 @@ download_abs_csv <- function(session,
 
     # Parse CSV
     data <- utils::read.csv(text = csv_content, stringsAsFactors = FALSE)
+
+    # Additional check: if column names contain HTML markers, we got an error page
+    col_names <- paste(names(data), collapse = " ")
+    if (grepl("DOCTYPE|<html|<body|<head", col_names, ignore.case = TRUE)) {
+      stop("Received HTML page instead of CSV data. Authentication likely failed.\n",
+           "Column names: ", substr(col_names, 1, 200), "\n",
+           "This suggests the login was unsuccessful or session expired.\n",
+           "Content preview: ", substr(csv_content, 1, 300))
+    }
 
     message("Successfully downloaded CSV: ", nrow(data), " rows, ", ncol(data), " columns")
 
