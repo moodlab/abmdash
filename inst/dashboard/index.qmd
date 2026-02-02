@@ -61,14 +61,71 @@ calendar_events <- tryCatch({
         # Build data frame directly - simpler approach
         Time <- character(length(filtered_events))
         Event <- character(length(filtered_events))
+        Clinician <- character(length(filtered_events))
+        Session <- character(length(filtered_events))
+        Participant_Status <- character(length(filtered_events))
         SortDate <- as.POSIXct(rep(NA, length(filtered_events)))
         IsToday <- logical(length(filtered_events))
+
+        # Hard-coded clinician mapping
+        clinician_map <- c(
+          "arieltseng@utexas.edu" = "Ariel",
+          "alevihncoon@utexas.edu" = "Andrew",
+          "rachelweisenburger@utexas.edu" = "Rachel"
+        )
 
         for (i in seq_along(filtered_events)) {
           event <- filtered_events[[i]]
 
           # Get event summary
           summary <- if (!is.null(event$summary)) event$summary else "No title"
+
+          # Extract clinician from attendees and get participant acceptance status
+          clinician_name <- NA_character_
+          participant_status <- ""
+
+          if (!is.null(event$attendees) && length(event$attendees) > 0) {
+            for (attendee in event$attendees) {
+              if (!is.null(attendee$email)) {
+                if (attendee$email %in% names(clinician_map)) {
+                  # This is the clinician
+                  clinician_name <- clinician_map[[attendee$email]]
+                } else {
+                  # This is the participant
+                  participant_status <- if (!is.null(attendee$responseStatus)) {
+                    switch(attendee$responseStatus,
+                      "accepted" = "Yes",
+                      "needsAction" = "Pending",
+                      "declined" = "No",
+                      "tentative" = "Maybe",
+                      attendee$responseStatus
+                    )
+                  } else {
+                    ""
+                  }
+                }
+              }
+            }
+          }
+
+          Clinician[i] <- if (!is.na(clinician_name)) clinician_name else "TBD"
+          Participant_Status[i] <- participant_status
+
+          # Extract session type from description
+          session_type <- "Screening"  # Default
+          if (!is.null(event$description)) {
+            # Look for "Which Session Event?:" in the description
+            match <- regmatches(event$description, regexpr("Which Session Event\\?:\\s*([^<\n]+)", event$description, perl = TRUE))
+            if (length(match) > 0) {
+              # Extract the text after "Which Session Event?:"
+              session_text <- sub("Which Session Event\\?:\\s*", "", match, perl = TRUE)
+              session_text <- trimws(session_text)
+              if (nchar(session_text) > 0) {
+                session_type <- session_text
+              }
+            }
+          }
+          Session[i] <- session_type
 
           # Extract time and date from start datetime
           if (!is.null(event$start$dateTime)) {
@@ -130,6 +187,9 @@ calendar_events <- tryCatch({
         events_df <- data.frame(
           Time = Time,
           Event = Event,
+          Clinician = Clinician,
+          Session = Session,
+          Participant_Accepted = Participant_Status,
           SortDate = SortDate,
           IsToday = IsToday,
           stringsAsFactors = FALSE
@@ -144,6 +204,9 @@ calendar_events <- tryCatch({
         data.frame(
           Time = "No ABM events",
           Event = "No UT Attention Bias Modification events scheduled",
+          Clinician = "",
+          Session = "",
+          Participant_Accepted = "",
           stringsAsFactors = FALSE
         )
       }
@@ -151,6 +214,9 @@ calendar_events <- tryCatch({
       data.frame(
         Time = "Debug Info",
         Event = debug_info,
+        Clinician = "",
+        Session = "",
+        Participant_Accepted = "",
         stringsAsFactors = FALSE
       )
     }
@@ -159,6 +225,9 @@ calendar_events <- tryCatch({
   data.frame(
     Time = "Error",
     Event = paste("Full error:", e$message),
+    Clinician = "",
+    Session = "",
+    Participant_Accepted = "",
     stringsAsFactors = FALSE
   )
 })
@@ -166,7 +235,7 @@ calendar_events <- tryCatch({
 # Display calendar events with highlighting for today's appointments
 if ("IsToday" %in% names(calendar_events) && any(calendar_events$IsToday)) {
   # Create display table without internal columns
-  display_events <- calendar_events[, c("Time", "Event")]
+  display_events <- calendar_events[, c("Time", "Event", "Clinician", "Session", "Participant_Accepted")]
 
   # Create tinytable and highlight today's rows
   today_rows <- which(calendar_events$IsToday)
@@ -176,7 +245,7 @@ if ("IsToday" %in% names(calendar_events) && any(calendar_events$IsToday)) {
 } else {
   # No today events or no IsToday column - display without highlighting
   if ("IsToday" %in% names(calendar_events)) {
-    calendar_events[, c("Time", "Event")] |>
+    calendar_events[, c("Time", "Event", "Clinician", "Session", "Participant_Accepted")] |>
       tinytable::tt(caption = "Upcoming Week's Schedule")
   } else {
     calendar_events |>
@@ -322,6 +391,61 @@ if (nrow(upcoming_followups) > 0) {
 } else {
   data.frame(Message = "No follow-ups due in the next 2 weeks") |>
     tinytable::tt()
+}
+```
+:::
+
+::: {.card title="Participant Issues"}
+
+```{r}
+# Check for recent participant issues
+issues <- tryCatch({
+  abmdash::check_participant_issues(days_back = 14, verbose = FALSE)
+}, error = function(e) {
+  list(
+    has_recent = FALSE,
+    recent_count = 0,
+    error = TRUE,
+    message = e$message
+  )
+})
+
+# Display results
+sheet_url <- "https://docs.google.com/spreadsheets/d/11FAAY4cUvqpW7QN7k-mcpOCx3WfrcA6GNeTXgBT1St8/edit#gid=2031348125"
+
+if (!is.null(issues$error) && issues$error) {
+  # Error occurred
+  data.frame(
+    Message = paste("Error checking issues:", substr(issues$message, 1, 50)),
+    Action = sheet_url
+  ) |>
+    tinytable::tt() |>
+    tinytable::format_tt(
+      j = "Action",
+      fn = function(x) paste0('<a href="', x, '" target="_blank">Check Issues Form</a>')
+    )
+} else if (issues$has_recent && issues$recent_count > 0) {
+  # There are recent issues
+  data.frame(
+    Status = paste0(issues$recent_count, " issue(s) reported in past 14 days"),
+    Action = sheet_url
+  ) |>
+    tinytable::tt() |>
+    tinytable::format_tt(
+      j = "Action",
+      fn = function(x) paste0('<a href="', x, '" target="_blank">Go to Issues Form</a>')
+    )
+} else {
+  # No recent issues
+  data.frame(
+    Message = "No issues reported in the past 14 days",
+    Action = sheet_url
+  ) |>
+    tinytable::tt() |>
+    tinytable::format_tt(
+      j = "Action",
+      fn = function(x) paste0('<a href="', x, '" target="_blank">Check Issues Form</a>')
+    )
 }
 ```
 :::
@@ -579,4 +703,171 @@ if (!is.null(enrollment_stats$monthly_breakdown) && nrow(enrollment_stats$monthl
     tinytable::tt(caption = "Monthly Enrollment Targets")
 }
 ```
+:::
+
+### Compliance (Do NOT Open to Remain Masked)
+
+#### Column
+
+::: {.card title="Gamified ABM Compliance"}
+
+```{r}
+# Get gamified ABM compliance
+gabm_compliance <- tryCatch({
+  gabm_sheet_url <- "https://docs.google.com/spreadsheets/d/1Sz3BOKVIx4TQbMfRpgYIc_Cyt-p5dU1S1DKGr-yaLmk/edit?gid=0#gid=0"
+
+  # Get the compliance data
+  result <- abmdash::get_participant_summary(gabm_sheet_url)
+
+  # Filter to active participants only
+  active <- result[result$current_week <= 4, ]
+
+  if (nrow(active) > 0) {
+    # Calculate expected sessions based on time
+    active$expected <- pmin(round(active$weeks_from_start * 4), 16)
+
+    # Determine status
+    active$status <- ifelse(
+      active$sessions_behind > 0,
+      paste("Behind by", round(active$sessions_behind)),
+      "On Track"
+    )
+
+    # Create display data
+    display_data <- data.frame(
+      "Participant ID" = active$id,
+      "Week" = active$current_week,
+      "Sessions Completed" = active$total_sessions_completed,
+      "Expected Sessions" = active$expected,
+      "Status" = active$status,
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+
+    # Create table with highlighting
+    tt_table <- display_data |>
+      tinytable::tt(caption = "Active Participants")
+
+    # Highlight rows that are behind
+    behind_rows <- which(active$sessions_behind > 0)
+    if (length(behind_rows) > 0) {
+      tt_table <- tt_table |>
+        tinytable::style_tt(i = behind_rows, background = "#ffebee")
+    }
+
+    tt_table
+  } else {
+    data.frame(Message = "No active participants") |>
+      tinytable::tt()
+  }
+}, error = function(e) {
+  data.frame(
+    Message = paste("Error loading GABM data:", substr(e$message, 1, 50))
+  ) |>
+    tinytable::tt()
+})
+
+gabm_compliance
+```
+
+:::
+
+::: {.card title="Traditional ABM Compliance"}
+
+```{r}
+# Get traditional ABM compliance
+trad_compliance <- tryCatch({
+  # Download traditional ABM data from ABS portal
+  service_account_json <- Sys.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+
+  if (service_account_json == "" || is.na(service_account_json)) {
+    data.frame(
+      Message = "ABS credentials not configured"
+    )
+  } else {
+    # Login and download data
+    session <- abmdash::abs_login(check_connection = FALSE)
+    trad_data <- abmdash::download_abs_csv(session, csv_path = "/admin/test/download-csv-all")
+
+    # Process the data
+    trad_data$start_time <- as.POSIXct(trad_data$start_time, tz = "UTC")
+
+    # Filter out test IDs
+    is_test <- grepl("test", trad_data$subject_id, ignore.case = TRUE)
+    trad_data <- trad_data[!is_test, ]
+
+    # Get first session date per participant
+    first_sessions <- aggregate(start_time ~ subject_id,
+                               data = trad_data[trad_data$session == 1, ],
+                               FUN = min)
+    names(first_sessions) <- c("id", "start_date")
+
+    # Calculate weeks from start
+    first_sessions$weeks_from_start <- as.numeric(
+      difftime(Sys.time(), first_sessions$start_date, units = "weeks")
+    )
+
+    # Filter to active participants (within 5 weeks)
+    active <- first_sessions[first_sessions$weeks_from_start <= 5, ]
+
+    if (nrow(active) > 0) {
+      # Count sessions per participant
+      session_counts <- aggregate(session ~ subject_id,
+                                 data = trad_data,
+                                 FUN = length)
+      names(session_counts) <- c("id", "total_sessions")
+
+      # Merge
+      active <- merge(active, session_counts, by = "id", all.x = TRUE)
+      active$total_sessions[is.na(active$total_sessions)] <- 0
+
+      # Calculate expected and status
+      active$current_week <- pmin(ceiling(active$weeks_from_start), 4)
+      active$expected <- pmin(round(active$weeks_from_start * 4), 16)
+      active$behind <- active$expected - active$total_sessions
+
+      active$status <- ifelse(
+        active$behind > 0,
+        paste("Behind by", round(active$behind)),
+        "On Track"
+      )
+
+      # Create display data
+      display_data <- data.frame(
+        "Participant ID" = active$id,
+        "Week" = active$current_week,
+        "Sessions Completed" = active$total_sessions,
+        "Expected Sessions" = active$expected,
+        "Status" = active$status,
+        stringsAsFactors = FALSE,
+        check.names = FALSE
+      )
+
+      # Create table with highlighting
+      tt_table <- display_data |>
+        tinytable::tt(caption = "Active Participants")
+
+      # Highlight rows that are behind
+      behind_rows <- which(active$behind > 0)
+      if (length(behind_rows) > 0) {
+        tt_table <- tt_table |>
+          tinytable::style_tt(i = behind_rows, background = "#ffebee")
+      }
+
+      tt_table
+    } else {
+      data.frame(Message = "No active participants") |>
+        tinytable::tt()
+    }
+  }
+}, error = function(e) {
+  data.frame(
+    Message = paste("Error loading Traditional ABM data:", substr(e$message, 1, 50))
+  ) |>
+    tinytable::tt()
+})
+
+trad_compliance
+```
+
 :::

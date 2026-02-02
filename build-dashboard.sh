@@ -1,8 +1,44 @@
 #!/bin/bash
 set -e
 
+# Auto-load environment variables from .Renviron if not already set
+if [[ -f ".Renviron" ]]; then
+  echo "🔧 Loading environment variables from .Renviron..."
+  line_num=0
+  while IFS='=' read -r key value; do
+    ((line_num++))
+    echo "  DEBUG line $line_num: key=<$key> value=<$value>"
+
+    [[ -z "$key" || "$key" =~ ^#.*$ ]] && continue
+
+    # Remove both double and single quotes from start/end
+    value=$(echo "$value" | sed "s/^[\"']//;s/[\"']$//")
+
+    # Only export if not already set
+    if [[ -z "${!key}" ]]; then
+      export "$key=$value"
+      echo "  ✓ Exported $key"
+    else
+      echo "  - Skipped $key (already set)"
+    fi
+  done < .Renviron
+fi
+
 IMAGE_NAME="abmdash"
 PASSWORD="${STATICRYPT_PASSWORD:-}"
+
+# Debug: Check if ABS credentials are loaded
+echo "🔍 Checking environment variables..."
+if [[ -n "$ABS_USERNAME" ]]; then
+  echo "  ✓ ABS_USERNAME is set"
+else
+  echo "  ✗ ABS_USERNAME is NOT set"
+fi
+if [[ -n "$ABS_PASSWORD" ]]; then
+  echo "  ✓ ABS_PASSWORD is set"
+else
+  echo "  ✗ ABS_PASSWORD is NOT set"
+fi
 
 echo "🔨 Building Docker image..."
 # Use buildx with cache to persist across Docker restarts
@@ -24,6 +60,8 @@ docker run --rm \
   -e STATICRYPT_PASSWORD="$PASSWORD" \
   -e REDCAP_API_TOKEN="$REDCAP_API_TOKEN" \
   -e GOOGLE_SERVICE_ACCOUNT_JSON="$GOOGLE_SERVICE_ACCOUNT_JSON" \
+  -e ABS_USERNAME="$ABS_USERNAME" \
+  -e ABS_PASSWORD="$ABS_PASSWORD" \
   -w /project \
   "$IMAGE_NAME" \
   bash -c "
