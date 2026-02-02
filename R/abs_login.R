@@ -131,9 +131,15 @@ abs_login <- function(base_url = "https://abs.la.utexas.edu",
       redirect_location <- httr2::resp_header(login_response, "location")
       message("Login successful! Redirected to: ", redirect_location)
 
-      # Return the authenticated session object
+      # Extract session cookies from Set-Cookie headers
+      set_cookie_headers <- httr2::resp_headers(login_response, "set-cookie")
+
+      # Return the authenticated session object with both cookie file and extracted cookies
       authenticated_session <- session |>
         httr2::req_cookie_preserve(cookie_file)
+
+      # Store extracted cookies as an attribute for manual use if needed
+      attr(authenticated_session, "session_cookies") <- set_cookie_headers
 
       return(authenticated_session)
 

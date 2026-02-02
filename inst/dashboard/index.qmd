@@ -820,8 +820,37 @@ trad_compliance <- tryCatch({
     diagnostics$stage <- "downloading CSV"
     session <- login_result$session
 
-    # Use the package function which works locally
-    trad_data <- abmdash::download_abs_csv(session, csv_path = "/admin/test/download-csv-all")
+    # Check if session has extracted cookies attribute
+    session_cookies <- attr(session, "session_cookies")
+    diagnostics$has_cookies_attr <- !is.null(session_cookies)
+
+    if (!is.null(session_cookies) && length(session_cookies) > 0) {
+      # Extract just the cookie values (before the semicolon)
+      cookie_values <- sapply(session_cookies, function(c) {
+        strsplit(c, ";")[[1]][1]
+      })
+      cookie_string <- paste(cookie_values, collapse="; ")
+      diagnostics$cookie_preview <- substr(cookie_string, 1, 100)
+
+      # Make request with explicit Cookie header
+      response <- session |>
+        httr2::req_url_path("/admin/test/download-csv-all") |>
+        httr2::req_headers(Cookie = cookie_string) |>
+        httr2::req_options(http_version = 2) |>
+        httr2::req_error(is_error = function(resp) FALSE) |>
+        httr2::req_perform()
+
+      if (httr2::resp_status(response) == 200) {
+        body <- httr2::resp_body_string(response)
+        trad_data <- utils::read.csv(text = body, stringsAsFactors = FALSE)
+      } else {
+        stop("CSV request failed with status: ", httr2::resp_status(response))
+      }
+    } else {
+      # Fall back to package function
+      diagnostics$cookie_preview <- "none"
+      trad_data <- abmdash::download_abs_csv(session, csv_path = "/admin/test/download-csv-all")
+    }
 
     # Store diagnostics
     diagnostics$raw_rows <- nrow(trad_data)
@@ -966,7 +995,9 @@ trad_compliance <- tryCatch({
     # Session diagnostics
     if (!is.null(diagnostics$session_class)) {
       diag_parts <- append(diag_parts, list(
-        data.frame(Info = "Session Class", Value = diagnostics$session_class %||% "unknown", stringsAsFactors = FALSE)
+        data.frame(Info = "Session Class", Value = diagnostics$session_class %||% "unknown", stringsAsFactors = FALSE),
+        data.frame(Info = "Has Cookies Attr", Value = as.character(diagnostics$has_cookies_attr %||% FALSE), stringsAsFactors = FALSE),
+        data.frame(Info = "Cookie Preview", Value = diagnostics$cookie_preview %||% "none", stringsAsFactors = FALSE)
       ))
     }
 
