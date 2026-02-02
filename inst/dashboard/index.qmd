@@ -824,9 +824,15 @@ trad_compliance <- tryCatch({
     # Read cookie file contents
     if (file.exists(cookie_path)) {
       cookie_contents <- readLines(cookie_path, warn = FALSE)
-      diagnostics$cookie_file_preview <- substr(paste(cookie_contents, collapse = " | "), 1, 200)
+      diagnostics$cookie_file_preview <- substr(paste(cookie_contents, collapse = " | "), 1, 300)
+      # Count actual cookie lines (non-comment, non-empty)
+      cookie_lines <- cookie_contents[!grepl("^#|^\\s*$", cookie_contents)]
+      diagnostics$cookie_file_num_cookies <- length(cookie_lines)
+      diagnostics$cookie_file_has_beevers <- any(grepl("beevers_session", cookie_contents))
     } else {
       diagnostics$cookie_file_preview <- "file not found"
+      diagnostics$cookie_file_num_cookies <- 0
+      diagnostics$cookie_file_has_beevers <- FALSE
     }
 
     if (!login_result$success) {
@@ -836,6 +842,19 @@ trad_compliance <- tryCatch({
     diagnostics$stage <- "downloading CSV"
     session <- login_result$session
     diagnostics$session_class <- class(session)[1]
+
+    # DEFINITIVE TEST: Make request to httpbin to see what cookies are actually sent
+    test_req <- session |>
+      httr2::req_url("https://httpbin.org/headers") |>
+      httr2::req_error(is_error = function(resp) FALSE) |>
+      httr2::req_perform()
+
+    if (httr2::resp_status(test_req) == 200) {
+      test_body <- httr2::resp_body_json(test_req)
+      diagnostics$httpbin_cookies_sent <- test_body$headers$Cookie %||% "NONE"
+    } else {
+      diagnostics$httpbin_cookies_sent <- "httpbin request failed"
+    }
 
     # Check if session has extracted cookies attribute
     session_cookies <- attr(session, "session_cookies")
@@ -864,9 +883,12 @@ trad_compliance <- tryCatch({
       diagnostics$cookie_preview <- substr(cookie_string, 1, 200)
 
       # Make request using session's cookie file (don't override with manual header)
-      response <- session |>
+      req <- session |>
         httr2::req_url_path("/admin/test/download-csv-all") |>
-        httr2::req_options(http_version = 0) |>  # Auto
+        httr2::req_options(http_version = 0, verbose = TRUE)  # Verbose to see what's sent
+
+      # Perform request
+      response <- req |>
         httr2::req_error(is_error = function(resp) FALSE) |>
         httr2::req_perform()
 
@@ -1032,7 +1054,9 @@ trad_compliance <- tryCatch({
         data.frame(Info = "Login Messages", Value = substr(diagnostics$login_messages %||% "none", 1, 500), stringsAsFactors = FALSE),
         data.frame(Info = "Cookie File Exists", Value = as.character(diagnostics$cookie_file_exists %||% FALSE), stringsAsFactors = FALSE),
         data.frame(Info = "Cookie File Size", Value = as.character(diagnostics$cookie_file_size %||% 0), stringsAsFactors = FALSE),
-        data.frame(Info = "Cookie File Preview", Value = substr(diagnostics$cookie_file_preview %||% "none", 1, 300), stringsAsFactors = FALSE)
+        data.frame(Info = "Cookie File Num Cookies", Value = as.character(diagnostics$cookie_file_num_cookies %||% 0), stringsAsFactors = FALSE),
+        data.frame(Info = "Cookie File Has Beevers", Value = as.character(diagnostics$cookie_file_has_beevers %||% FALSE), stringsAsFactors = FALSE),
+        data.frame(Info = "Cookie File Preview", Value = substr(diagnostics$cookie_file_preview %||% "none", 1, 500), stringsAsFactors = FALSE)
       ))
     }
 
@@ -1040,6 +1064,7 @@ trad_compliance <- tryCatch({
     if (!is.null(diagnostics$session_class)) {
       diag_parts <- append(diag_parts, list(
         data.frame(Info = "Session Class", Value = diagnostics$session_class %||% "unknown", stringsAsFactors = FALSE),
+        data.frame(Info = "HTTPBin Cookies Sent", Value = substr(diagnostics$httpbin_cookies_sent %||% "unknown", 1, 300), stringsAsFactors = FALSE),
         data.frame(Info = "Has Cookies Attr", Value = as.character(diagnostics$has_cookies_attr %||% FALSE), stringsAsFactors = FALSE),
         data.frame(Info = "Cookies Attr Length", Value = as.character(diagnostics$cookies_attr_length %||% 0), stringsAsFactors = FALSE),
         data.frame(Info = "Cookies Attr Class", Value = diagnostics$cookies_attr_class %||% "unknown", stringsAsFactors = FALSE),
