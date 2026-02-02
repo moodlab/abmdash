@@ -5,6 +5,10 @@ title: "MDL R01 GABM Participant Dashboard"
 ```{r}
 #| echo: false
 #| output: asis
+
+# Define null coalescing operator
+`%||%` <- function(x, y) if (is.null(x)) y else x
+
 cat(paste0("**Last updated:** ", abmdash::get_central_time(), "\n\n"))
 ```
 
@@ -777,6 +781,10 @@ gabm_compliance
 ```{r}
 # Get traditional ABM compliance
 trad_compliance <- tryCatch({
+  # Initialize diagnostics environment (visible to error handler)
+  diagnostics <- new.env()
+  diagnostics$stage <- "initialization"
+
   # Download traditional ABM data from ABS portal
   service_account_json <- Sys.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
 
@@ -786,74 +794,87 @@ trad_compliance <- tryCatch({
     )
   } else {
     # Login and download data
+    diagnostics$stage <- "logging in"
     session <- abmdash::abs_login(check_connection = FALSE)
+
+    diagnostics$stage <- "downloading CSV"
     trad_data <- abmdash::download_abs_csv(session, csv_path = "/admin/test/download-csv-all")
 
-    # DEBUG: Log initial data
-    message("DEBUG: Initial trad_data rows: ", nrow(trad_data))
-    message("DEBUG: Columns: ", paste(names(trad_data), collapse = ", "))
+    # Store diagnostics
+    diagnostics$raw_rows <- nrow(trad_data)
+    diagnostics$raw_cols <- paste(names(trad_data), collapse = ", ")
 
     # Process the data
+    diagnostics$stage <- "processing timestamps"
     trad_data$start_time <- as.POSIXct(trad_data$start_time, tz = "UTC")
 
     # Filter out test IDs
+    diagnostics$stage <- "filtering test IDs"
     is_test <- grepl("test", trad_data$subject_id, ignore.case = TRUE)
     trad_data <- trad_data[!is_test, ]
-    message("DEBUG: After filtering tests: ", nrow(trad_data), " rows")
+    diagnostics$filtered_rows <- nrow(trad_data)
 
     # Get first session date per participant
+    diagnostics$stage <- "extracting session 1 data"
     session_1_data <- trad_data[trad_data$session == 1, ]
-    message("DEBUG: Session 1 data rows: ", nrow(session_1_data))
+    diagnostics$session1_rows <- nrow(session_1_data)
 
+    diagnostics$stage <- "aggregating first sessions"
     first_sessions <- aggregate(start_time ~ subject_id,
                                data = session_1_data,
                                FUN = min)
-    message("DEBUG: first_sessions rows: ", nrow(first_sessions))
+    diagnostics$first_sessions_rows <- nrow(first_sessions)
     names(first_sessions) <- c("id", "start_date")
 
     # Calculate weeks from start
+    diagnostics$stage <- "calculating weeks from start"
     first_sessions$weeks_from_start <- as.numeric(
       difftime(Sys.time(), first_sessions$start_date, units = "weeks")
     )
-    message("DEBUG: weeks_from_start calculated")
 
     # Filter to active participants (within 5 weeks)
+    diagnostics$stage <- "filtering to active participants"
     active <- first_sessions[first_sessions$weeks_from_start <= 5, ]
-    message("DEBUG: Active participants (<=5 weeks): ", nrow(active))
+    diagnostics$active_rows <- nrow(active)
 
     if (nrow(active) > 0) {
       # Count sessions per participant
+      diagnostics$stage <- "counting sessions per participant"
       session_counts <- aggregate(session ~ subject_id,
                                  data = trad_data,
                                  FUN = length)
-      message("DEBUG: session_counts rows: ", nrow(session_counts))
-      message("DEBUG: session_counts columns: ", paste(names(session_counts), collapse = ", "))
+      diagnostics$session_counts_rows <- nrow(session_counts)
 
       names(session_counts) <- c("id", "total_sessions")
 
       # Merge - use safer approach
+      diagnostics$stage <- "merging active with session_counts"
       if (nrow(session_counts) > 0) {
-        message("DEBUG: Before merge - active rows: ", nrow(active), ", session_counts rows: ", nrow(session_counts))
+        # Capture ID information for debugging
+        active_ids <- active$id
+        session_ids <- session_counts$id
+        diagnostics$active_ids_sample <- paste(head(active_ids, 3), collapse = ", ")
+        diagnostics$session_ids_sample <- paste(head(session_ids, 3), collapse = ", ")
+        diagnostics$ids_overlap <- sum(active_ids %in% session_ids)
+
         active_merged <- merge(active, session_counts, by = "id", all.x = TRUE)
-        message("DEBUG: After merge - rows: ", nrow(active_merged), ", columns: ", paste(names(active_merged), collapse = ", "))
+        diagnostics$merged_rows <- nrow(active_merged)
 
         # Replace NA with 0
         if ("total_sessions" %in% names(active_merged)) {
-          na_count <- sum(is.na(active_merged$total_sessions))
-          message("DEBUG: NAs in total_sessions: ", na_count)
+          diagnostics$na_count <- sum(is.na(active_merged$total_sessions))
           active_merged$total_sessions[is.na(active_merged$total_sessions)] <- 0
         } else {
-          message("DEBUG: total_sessions column missing, adding with 0s")
           active_merged$total_sessions <- 0
         }
         active <- active_merged
       } else {
-        message("DEBUG: No session counts, adding total_sessions = 0")
         # No sessions found - add total_sessions column with 0
         active$total_sessions <- 0
       }
 
       # Calculate expected and status
+      diagnostics$stage <- "calculating expected sessions and status"
       active$current_week <- pmin(ceiling(active$weeks_from_start), 4)
       active$expected <- pmin(round(active$weeks_from_start * 4), 16)
       active$behind <- active$expected - active$total_sessions
@@ -865,6 +886,7 @@ trad_compliance <- tryCatch({
       )
 
       # Create display data
+      diagnostics$stage <- "creating display data"
       display_data <- data.frame(
         "Participant ID" = active$id,
         "Week" = active$current_week,
@@ -876,6 +898,7 @@ trad_compliance <- tryCatch({
       )
 
       # Create table with highlighting
+      diagnostics$stage <- "creating table"
       tt_table <- display_data |>
         tinytable::tt(caption = "Active Participants")
 
@@ -893,8 +916,34 @@ trad_compliance <- tryCatch({
     }
   }
 }, error = function(e) {
+  # Display error with all diagnostic information
+  diag_info <- if (exists("diagnostics") && is.environment(diagnostics)) {
+    parts <- c(
+      sprintf("Stage: %s", diagnostics$stage %||% "unknown"),
+      sprintf("Raw rows: %s", diagnostics$raw_rows %||% "N/A"),
+      sprintf("Filtered rows: %s", diagnostics$filtered_rows %||% "N/A"),
+      sprintf("Session 1 rows: %s", diagnostics$session1_rows %||% "N/A"),
+      sprintf("First sessions: %s", diagnostics$first_sessions_rows %||% "N/A"),
+      sprintf("Active rows: %s", diagnostics$active_rows %||% "N/A"),
+      sprintf("Session counts: %s", diagnostics$session_counts_rows %||% "N/A"),
+      sprintf("IDs overlap: %s", diagnostics$ids_overlap %||% "N/A"),
+      sprintf("Active IDs: %s", diagnostics$active_ids_sample %||% "N/A"),
+      sprintf("Session IDs: %s", diagnostics$session_ids_sample %||% "N/A"),
+      sprintf("Merged rows: %s", diagnostics$merged_rows %||% "N/A"),
+      sprintf("NA count: %s", diagnostics$na_count %||% "N/A")
+    )
+    paste(parts, collapse = " | ")
+  } else {
+    "No diagnostics available"
+  }
+
   data.frame(
-    Message = paste("Error loading Traditional ABM data:", substr(e$message, 1, 50))
+    Info = c("Error", "Diagnostics"),
+    Value = c(
+      substr(as.character(e$message), 1, 300),
+      substr(diag_info, 1, 500)
+    ),
+    stringsAsFactors = FALSE
   ) |>
     tinytable::tt()
 })
