@@ -918,28 +918,23 @@ trad_compliance <- tryCatch({
       httr2::req_error(is_error = function(resp) FALSE) |>
       httr2::req_perform()
 
-      # Capture response details
-      diagnostics$csv_status <- httr2::resp_status(response)
-      diagnostics$csv_content_type <- httr2::resp_header(response, "content-type") %||% "unknown"
-      body <- httr2::resp_body_string(response)
-      diagnostics$csv_body_length <- nchar(body)
-      diagnostics$csv_body_preview <- substr(body, 1, 500)
+    # Capture response details
+    diagnostics$csv_status <- httr2::resp_status(response)
+    diagnostics$csv_content_type <- httr2::resp_header(response, "content-type") %||% "unknown"
+    body <- httr2::resp_body_string(response)
+    diagnostics$csv_body_length <- nchar(body)
+    diagnostics$csv_body_preview <- substr(body, 1, 500)
 
-      # Try to extract HTML title if it's HTML
-      if (grepl("text/html", diagnostics$csv_content_type, ignore.case = TRUE)) {
-        title_match <- regmatches(body, regexpr("<title>([^<]*)</title>", body, ignore.case = TRUE))
-        diagnostics$html_title <- if (length(title_match) > 0) gsub("</?title>", "", title_match[1], ignore.case = TRUE) else "no title found"
-      }
+    # Try to extract HTML title if it's HTML
+    if (grepl("text/html", diagnostics$csv_content_type, ignore.case = TRUE)) {
+      title_match <- regmatches(body, regexpr("<title>([^<]*)</title>", body, ignore.case = TRUE))
+      diagnostics$html_title <- if (length(title_match) > 0) gsub("</?title>", "", title_match[1], ignore.case = TRUE) else "no title found"
+    }
 
-      if (httr2::resp_status(response) == 200) {
-        trad_data <- utils::read.csv(text = body, stringsAsFactors = FALSE)
-      } else {
-        stop("CSV request failed with status: ", httr2::resp_status(response))
-      }
+    if (httr2::resp_status(response) == 200) {
+      trad_data <- utils::read.csv(text = body, stringsAsFactors = FALSE)
     } else {
-      # Fall back to package function
-      diagnostics$cookie_preview <- "none"
-      trad_data <- abmdash::download_abs_csv(session, csv_path = "/admin/test/download-csv-all")
+      stop("CSV request failed with status: ", httr2::resp_status(response))
     }
 
     # Store diagnostics
