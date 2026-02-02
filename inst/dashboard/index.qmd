@@ -785,9 +785,10 @@ data.frame(
 
 # Diagnostic code preserved for future debugging (currently disabled)
 if (FALSE) {
-  # Initialize diagnostics environment (visible to error handler)
-  diagnostics <- new.env()
-  diagnostics$stage <- "initialization"
+  trad_compliance <- tryCatch({
+    # Initialize diagnostics environment (visible to error handler)
+    diagnostics <- new.env()
+    diagnostics$stage <- "initialization"
 
   # Download traditional ABM data from ABS portal
   abs_username <- Sys.getenv("ABS_USERNAME")
@@ -1138,6 +1139,8 @@ if (FALSE) {
       tinytable::tt()
   }
 })
+
+  trad_compliance
 } # End of if (FALSE) - diagnostic code disabled
 
 ```
