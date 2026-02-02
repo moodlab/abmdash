@@ -7,6 +7,10 @@ on:
   push:
     branches: [ main ]     # Run on pushes to main
 
+concurrency:
+  group: dashboard-build
+  cancel-in-progress: false
+
 jobs:
   build-image:
     runs-on: ubuntu-latest
