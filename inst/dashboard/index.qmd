@@ -813,12 +813,21 @@ trad_compliance <- tryCatch({
     diagnostics$cookie_file_exists <- file.exists(cookie_path)
     diagnostics$cookie_file_size <- if (file.exists(cookie_path)) file.size(cookie_path) else 0
 
+    # Read cookie file contents
+    if (file.exists(cookie_path)) {
+      cookie_contents <- readLines(cookie_path, warn = FALSE)
+      diagnostics$cookie_file_preview <- substr(paste(cookie_contents, collapse = " | "), 1, 200)
+    } else {
+      diagnostics$cookie_file_preview <- "file not found"
+    }
+
     if (!login_result$success) {
       stop("Login failed: ", login_result$error)
     }
 
     diagnostics$stage <- "downloading CSV"
     session <- login_result$session
+    diagnostics$session_class <- class(session)[1]
 
     # Check if session has extracted cookies attribute
     session_cookies <- attr(session, "session_cookies")
@@ -840,8 +849,20 @@ trad_compliance <- tryCatch({
         httr2::req_error(is_error = function(resp) FALSE) |>
         httr2::req_perform()
 
+      # Capture response details
+      diagnostics$csv_status <- httr2::resp_status(response)
+      diagnostics$csv_content_type <- httr2::resp_header(response, "content-type") %||% "unknown"
+      body <- httr2::resp_body_string(response)
+      diagnostics$csv_body_length <- nchar(body)
+      diagnostics$csv_body_preview <- substr(body, 1, 500)
+
+      # Try to extract HTML title if it's HTML
+      if (grepl("text/html", diagnostics$csv_content_type, ignore.case = TRUE)) {
+        title_match <- regmatches(body, regexpr("<title>([^<]*)</title>", body, ignore.case = TRUE))
+        diagnostics$html_title <- if (length(title_match) > 0) gsub("</?title>", "", title_match[1], ignore.case = TRUE) else "no title found"
+      }
+
       if (httr2::resp_status(response) == 200) {
-        body <- httr2::resp_body_string(response)
         trad_data <- utils::read.csv(text = body, stringsAsFactors = FALSE)
       } else {
         stop("CSV request failed with status: ", httr2::resp_status(response))
@@ -988,7 +1009,8 @@ trad_compliance <- tryCatch({
         data.frame(Info = "Login Success", Value = as.character(diagnostics$login_success), stringsAsFactors = FALSE),
         data.frame(Info = "Login Error", Value = diagnostics$login_error %||% "none", stringsAsFactors = FALSE),
         data.frame(Info = "Cookie File Exists", Value = as.character(diagnostics$cookie_file_exists %||% FALSE), stringsAsFactors = FALSE),
-        data.frame(Info = "Cookie File Size", Value = as.character(diagnostics$cookie_file_size %||% 0), stringsAsFactors = FALSE)
+        data.frame(Info = "Cookie File Size", Value = as.character(diagnostics$cookie_file_size %||% 0), stringsAsFactors = FALSE),
+        data.frame(Info = "Cookie File Preview", Value = substr(diagnostics$cookie_file_preview %||% "none", 1, 300), stringsAsFactors = FALSE)
       ))
     }
 
@@ -1007,7 +1029,9 @@ trad_compliance <- tryCatch({
         data.frame(Info = "CSV Status", Value = as.character(diagnostics$csv_status), stringsAsFactors = FALSE),
         data.frame(Info = "CSV Error", Value = substr(diagnostics$csv_error %||% "none", 1, 300), stringsAsFactors = FALSE),
         data.frame(Info = "Content-Type", Value = diagnostics$csv_content_type %||% "unknown", stringsAsFactors = FALSE),
-        data.frame(Info = "Body Length", Value = as.character(diagnostics$csv_body_length %||% 0), stringsAsFactors = FALSE)
+        data.frame(Info = "Body Length", Value = as.character(diagnostics$csv_body_length %||% 0), stringsAsFactors = FALSE),
+        data.frame(Info = "HTML Title", Value = substr(diagnostics$html_title %||% "N/A", 1, 200), stringsAsFactors = FALSE),
+        data.frame(Info = "Body Preview", Value = substr(diagnostics$csv_body_preview %||% "none", 1, 500), stringsAsFactors = FALSE)
       ))
     }
 
