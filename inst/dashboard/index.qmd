@@ -798,15 +798,23 @@ trad_compliance <- tryCatch({
     diagnostics$stage <- "attempting login"
 
     # Try to login and capture detailed information
+    # Capture console output to get cookie debug messages
+    login_messages <- character()
     login_result <- tryCatch({
-      session <- abmdash::abs_login(check_connection = FALSE)
-      list(success = TRUE, session = session, error = NULL)
+      session <- withCallingHandlers(
+        abmdash::abs_login(check_connection = FALSE),
+        message = function(m) {
+          login_messages <<- c(login_messages, conditionMessage(m))
+        }
+      )
+      list(success = TRUE, session = session, error = NULL, messages = login_messages)
     }, error = function(e) {
-      list(success = FALSE, session = NULL, error = as.character(e$message))
+      list(success = FALSE, session = NULL, error = as.character(e$message), messages = login_messages)
     })
 
     diagnostics$login_success <- login_result$success
     diagnostics$login_error <- if (!is.null(login_result$error)) substr(login_result$error, 1, 200) else "none"
+    diagnostics$login_messages <- if (!is.null(login_result$messages)) paste(login_result$messages, collapse = " | ") else "none"
 
     # Check if cookie file exists and has content
     cookie_path <- file.path(tempdir(), "abs_session_cookies.txt")
@@ -1008,6 +1016,7 @@ trad_compliance <- tryCatch({
       diag_parts <- append(diag_parts, list(
         data.frame(Info = "Login Success", Value = as.character(diagnostics$login_success), stringsAsFactors = FALSE),
         data.frame(Info = "Login Error", Value = diagnostics$login_error %||% "none", stringsAsFactors = FALSE),
+        data.frame(Info = "Login Messages", Value = substr(diagnostics$login_messages %||% "none", 1, 500), stringsAsFactors = FALSE),
         data.frame(Info = "Cookie File Exists", Value = as.character(diagnostics$cookie_file_exists %||% FALSE), stringsAsFactors = FALSE),
         data.frame(Info = "Cookie File Size", Value = as.character(diagnostics$cookie_file_size %||% 0), stringsAsFactors = FALSE),
         data.frame(Info = "Cookie File Preview", Value = substr(diagnostics$cookie_file_preview %||% "none", 1, 300), stringsAsFactors = FALSE)

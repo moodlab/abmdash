@@ -122,6 +122,14 @@ abs_login <- function(base_url = "https://abs.la.utexas.edu",
     status_code <- httr2::resp_status(login_response)
     message("Login response status: ", status_code)
 
+    # Debug: Show all Set-Cookie headers
+    all_headers <- httr2::resp_headers(login_response)
+    cookie_headers <- all_headers[grepl("set-cookie", names(all_headers), ignore.case = TRUE)]
+    message("Set-Cookie headers found: ", length(cookie_headers))
+    for (i in seq_along(cookie_headers)) {
+      message("  Cookie ", i, ": ", substr(cookie_headers[[i]], 1, 150))
+    }
+
     # Success indicators:
     # - 302/301 redirect (common for successful login)
     # - 200 with no error message
