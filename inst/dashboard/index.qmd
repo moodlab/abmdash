@@ -854,11 +854,11 @@ trad_compliance <- tryCatch({
     }
 
     if (!is.null(session_cookies) && length(session_cookies) > 0) {
-      # Convert httr2_headers to character vector
-      cookie_values <- as.character(session_cookies)
+      # Flatten httr2_headers to plain character vector
+      cookie_values <- unlist(session_cookies, use.names = FALSE)
       # Extract just the cookie values (before the semicolon)
       cookie_values <- sapply(cookie_values, function(c) {
-        strsplit(c, ";")[[1]][1]
+        strsplit(as.character(c), ";")[[1]][1]
       }, USE.NAMES = FALSE)
       cookie_string <- paste(cookie_values, collapse="; ")
       diagnostics$cookie_preview <- substr(cookie_string, 1, 200)
