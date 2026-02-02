@@ -368,6 +368,26 @@ download_abs_csv <- function(session,
     # Get the CSV content
     csv_content <- httr2::resp_body_string(response)
 
+    # Check if we got HTML instead of CSV (indicates login failure or error page)
+    if (grepl("^\\s*<!DOCTYPE|^\\s*<html", csv_content, ignore.case = TRUE)) {
+      # Extract any error message from the HTML if possible
+      error_match <- regmatches(csv_content, regexpr("<title>([^<]+)</title>", csv_content, ignore.case = TRUE))
+      if (length(error_match) > 0) {
+        stop("Received HTML page instead of CSV. Title: ", error_match[1],
+             "\nThis usually means authentication failed or session expired.",
+             "\nFirst 200 chars: ", substr(csv_content, 1, 200))
+      } else {
+        stop("Received HTML page instead of CSV (authentication may have failed).",
+             "\nFirst 200 chars: ", substr(csv_content, 1, 200))
+      }
+    }
+
+    # Check Content-Type header
+    content_type <- httr2::resp_header(response, "content-type")
+    if (!is.null(content_type) && !grepl("csv|octet-stream", content_type, ignore.case = TRUE)) {
+      warning("Unexpected Content-Type: ", content_type, ". Expected CSV.")
+    }
+
     # Parse CSV
     data <- utils::read.csv(text = csv_content, stringsAsFactors = FALSE)
 

@@ -786,12 +786,13 @@ trad_compliance <- tryCatch({
   diagnostics$stage <- "initialization"
 
   # Download traditional ABM data from ABS portal
-  service_account_json <- Sys.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+  abs_username <- Sys.getenv("ABS_USERNAME")
+  abs_password <- Sys.getenv("ABS_PASSWORD")
 
-  if (service_account_json == "" || is.na(service_account_json)) {
+  if (abs_username == "" || is.na(abs_username) || abs_password == "" || is.na(abs_password)) {
     data.frame(
-      Message = "ABS credentials not configured"
-    )
+      Message = "ABS credentials not configured (ABS_USERNAME or ABS_PASSWORD missing)"
+    ) |> tinytable::tt()
   } else {
     # Login and download data
     diagnostics$stage <- "logging in"
