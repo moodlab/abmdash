@@ -140,10 +140,12 @@ abs_login <- function(base_url = "https://abs.la.utexas.edu",
       message("Login successful! Redirected to: ", redirect_location)
 
       # Extract session cookies from Set-Cookie headers
-      # Use same method as debug to get ALL cookies
-      all_resp_headers <- httr2::resp_headers(login_response)
-      set_cookie_headers <- all_resp_headers[grepl("set-cookie", names(all_resp_headers), ignore.case = TRUE)]
-      message("Extracted ", length(set_cookie_headers), " cookies for attribute")
+      # Get the raw header list which preserves duplicates
+      raw_headers <- login_response$headers
+      # Find all set-cookie headers (case insensitive)
+      set_cookie_indices <- which(tolower(names(raw_headers)) == "set-cookie")
+      set_cookie_headers <- raw_headers[set_cookie_indices]
+      message("Extracted ", length(set_cookie_headers), " cookies for attribute (method: raw headers)")
 
       # Return the authenticated session object with both cookie file and extracted cookies
       authenticated_session <- session |>
@@ -167,10 +169,12 @@ abs_login <- function(base_url = "https://abs.la.utexas.edu",
         message("Login appears successful (status 200)")
 
         # Extract session cookies from Set-Cookie headers
-        # Use same method as debug to get ALL cookies
-        all_resp_headers <- httr2::resp_headers(login_response)
-        set_cookie_headers <- all_resp_headers[grepl("set-cookie", names(all_resp_headers), ignore.case = TRUE)]
-        message("Extracted ", length(set_cookie_headers), " cookies for attribute")
+        # Get the raw header list which preserves duplicates
+        raw_headers <- login_response$headers
+        # Find all set-cookie headers (case insensitive)
+        set_cookie_indices <- which(tolower(names(raw_headers)) == "set-cookie")
+        set_cookie_headers <- raw_headers[set_cookie_indices]
+        message("Extracted ", length(set_cookie_headers), " cookies for attribute (method: raw headers)")
 
         # Return the authenticated session with both cookie file and extracted cookies
         authenticated_session <- session |>
