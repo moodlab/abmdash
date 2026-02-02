@@ -779,8 +779,12 @@ gabm_compliance
 ::: {.card title="Traditional ABM Compliance"}
 
 ```{r}
-# Get traditional ABM compliance
-trad_compliance <- tryCatch({
+data.frame(
+  Message = "Traditional ABM Compliance Available Soon"
+) |> tinytable::tt()
+
+# Diagnostic code preserved for future debugging (currently disabled)
+if (FALSE) {
   # Initialize diagnostics environment (visible to error handler)
   diagnostics <- new.env()
   diagnostics$stage <- "initialization"
@@ -1134,8 +1138,8 @@ trad_compliance <- tryCatch({
       tinytable::tt()
   }
 })
+} # End of if (FALSE) - diagnostic code disabled
 
-trad_compliance
 ```
 
 :::
