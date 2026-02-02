@@ -789,44 +789,66 @@ trad_compliance <- tryCatch({
     session <- abmdash::abs_login(check_connection = FALSE)
     trad_data <- abmdash::download_abs_csv(session, csv_path = "/admin/test/download-csv-all")
 
+    # DEBUG: Log initial data
+    message("DEBUG: Initial trad_data rows: ", nrow(trad_data))
+    message("DEBUG: Columns: ", paste(names(trad_data), collapse = ", "))
+
     # Process the data
     trad_data$start_time <- as.POSIXct(trad_data$start_time, tz = "UTC")
 
     # Filter out test IDs
     is_test <- grepl("test", trad_data$subject_id, ignore.case = TRUE)
     trad_data <- trad_data[!is_test, ]
+    message("DEBUG: After filtering tests: ", nrow(trad_data), " rows")
 
     # Get first session date per participant
+    session_1_data <- trad_data[trad_data$session == 1, ]
+    message("DEBUG: Session 1 data rows: ", nrow(session_1_data))
+
     first_sessions <- aggregate(start_time ~ subject_id,
-                               data = trad_data[trad_data$session == 1, ],
+                               data = session_1_data,
                                FUN = min)
+    message("DEBUG: first_sessions rows: ", nrow(first_sessions))
     names(first_sessions) <- c("id", "start_date")
 
     # Calculate weeks from start
     first_sessions$weeks_from_start <- as.numeric(
       difftime(Sys.time(), first_sessions$start_date, units = "weeks")
     )
+    message("DEBUG: weeks_from_start calculated")
 
     # Filter to active participants (within 5 weeks)
     active <- first_sessions[first_sessions$weeks_from_start <= 5, ]
+    message("DEBUG: Active participants (<=5 weeks): ", nrow(active))
 
     if (nrow(active) > 0) {
       # Count sessions per participant
       session_counts <- aggregate(session ~ subject_id,
                                  data = trad_data,
                                  FUN = length)
+      message("DEBUG: session_counts rows: ", nrow(session_counts))
+      message("DEBUG: session_counts columns: ", paste(names(session_counts), collapse = ", "))
+
       names(session_counts) <- c("id", "total_sessions")
 
       # Merge - use safer approach
       if (nrow(session_counts) > 0) {
-        active <- merge(active, session_counts, by = "id", all.x = TRUE)
+        message("DEBUG: Before merge - active rows: ", nrow(active), ", session_counts rows: ", nrow(session_counts))
+        active_merged <- merge(active, session_counts, by = "id", all.x = TRUE)
+        message("DEBUG: After merge - rows: ", nrow(active_merged), ", columns: ", paste(names(active_merged), collapse = ", "))
+
         # Replace NA with 0
-        if ("total_sessions" %in% names(active)) {
-          active$total_sessions[is.na(active$total_sessions)] <- 0
+        if ("total_sessions" %in% names(active_merged)) {
+          na_count <- sum(is.na(active_merged$total_sessions))
+          message("DEBUG: NAs in total_sessions: ", na_count)
+          active_merged$total_sessions[is.na(active_merged$total_sessions)] <- 0
         } else {
-          active$total_sessions <- 0
+          message("DEBUG: total_sessions column missing, adding with 0s")
+          active_merged$total_sessions <- 0
         }
+        active <- active_merged
       } else {
+        message("DEBUG: No session counts, adding total_sessions = 0")
         # No sessions found - add total_sessions column with 0
         active$total_sessions <- 0
       }
