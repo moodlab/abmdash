@@ -803,6 +803,13 @@ trad_compliance <- tryCatch({
     # Store diagnostics
     diagnostics$raw_rows <- nrow(trad_data)
     diagnostics$raw_cols <- paste(names(trad_data), collapse = ", ")
+    diagnostics$has_start_time <- "start_time" %in% names(trad_data)
+
+    if ("start_time" %in% names(trad_data)) {
+      diagnostics$start_time_class <- class(trad_data$start_time)[1]
+      diagnostics$start_time_sample <- paste(head(trad_data$start_time, 2), collapse = " | ")
+      diagnostics$start_time_length <- length(trad_data$start_time)
+    }
 
     # Process the data
     diagnostics$stage <- "processing timestamps"
@@ -921,6 +928,11 @@ trad_compliance <- tryCatch({
     parts <- c(
       sprintf("Stage: %s", diagnostics$stage %||% "unknown"),
       sprintf("Raw rows: %s", diagnostics$raw_rows %||% "N/A"),
+      sprintf("Columns: %s", diagnostics$raw_cols %||% "N/A"),
+      sprintf("Has start_time: %s", diagnostics$has_start_time %||% "N/A"),
+      sprintf("start_time class: %s", diagnostics$start_time_class %||% "N/A"),
+      sprintf("start_time length: %s", diagnostics$start_time_length %||% "N/A"),
+      sprintf("start_time sample: %s", diagnostics$start_time_sample %||% "N/A"),
       sprintf("Filtered rows: %s", diagnostics$filtered_rows %||% "N/A"),
       sprintf("Session 1 rows: %s", diagnostics$session1_rows %||% "N/A"),
       sprintf("First sessions: %s", diagnostics$first_sessions_rows %||% "N/A"),
