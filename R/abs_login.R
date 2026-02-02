@@ -127,7 +127,7 @@ abs_login <- function(base_url = "https://abs.la.utexas.edu",
     cookie_headers <- all_headers[grepl("set-cookie", names(all_headers), ignore.case = TRUE)]
     message("Set-Cookie headers found: ", length(cookie_headers))
     for (i in seq_along(cookie_headers)) {
-      message("  Cookie ", i, ": ", substr(cookie_headers[[i]], 1, 150))
+      message("  Cookie ", i, " (FULL): ", cookie_headers[[i]])
     }
 
     # Success indicators:
