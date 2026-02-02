@@ -140,7 +140,10 @@ abs_login <- function(base_url = "https://abs.la.utexas.edu",
       message("Login successful! Redirected to: ", redirect_location)
 
       # Extract session cookies from Set-Cookie headers
-      set_cookie_headers <- httr2::resp_headers(login_response, "set-cookie")
+      # Use same method as debug to get ALL cookies
+      all_resp_headers <- httr2::resp_headers(login_response)
+      set_cookie_headers <- all_resp_headers[grepl("set-cookie", names(all_resp_headers), ignore.case = TRUE)]
+      message("Extracted ", length(set_cookie_headers), " cookies for attribute")
 
       # Return the authenticated session object with both cookie file and extracted cookies
       authenticated_session <- session |>
@@ -164,7 +167,10 @@ abs_login <- function(base_url = "https://abs.la.utexas.edu",
         message("Login appears successful (status 200)")
 
         # Extract session cookies from Set-Cookie headers
-        set_cookie_headers <- httr2::resp_headers(login_response, "set-cookie")
+        # Use same method as debug to get ALL cookies
+        all_resp_headers <- httr2::resp_headers(login_response)
+        set_cookie_headers <- all_resp_headers[grepl("set-cookie", names(all_resp_headers), ignore.case = TRUE)]
+        message("Extracted ", length(set_cookie_headers), " cookies for attribute")
 
         # Return the authenticated session with both cookie file and extracted cookies
         authenticated_session <- session |>
