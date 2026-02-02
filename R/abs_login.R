@@ -56,7 +56,8 @@ abs_login <- function(base_url = "https://abs.la.utexas.edu",
   login_url <- paste0(base_url, login_path)
 
   # Step 1: Create a session with cookie handling
-  cookie_file <- tempfile()
+  # Use /tmp with a fixed name instead of tempfile() for better persistence in Docker
+  cookie_file <- file.path(tempdir(), "abs_session_cookies.txt")
   session <- httr2::request(base_url) |>
     httr2::req_options(
       ssl_verifypeer = 0,
