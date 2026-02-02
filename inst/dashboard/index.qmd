@@ -873,25 +873,50 @@ trad_compliance <- tryCatch({
       diagnostics$cookies_raw_content <- "none"
     }
 
-    if (!is.null(session_cookies) && length(session_cookies) > 0) {
-      # Flatten httr2_headers to plain character vector
-      cookie_values <- unlist(session_cookies, use.names = FALSE)
-      # Extract just the cookie values (before the semicolon)
-      cookie_values <- sapply(cookie_values, function(c) {
-        strsplit(as.character(c), ";")[[1]][1]
-      }, USE.NAMES = FALSE)
-      cookie_string <- paste(cookie_values, collapse="; ")
-      diagnostics$cookie_preview <- substr(cookie_string, 1, 200)
+    # Manually parse cookie file (including #HttpOnly_ lines)
+    cookie_file_path <- file.path(tempdir(), "abs_session_cookies.txt")
+    cookie_pairs <- character()
 
-      # Make request using session's cookie file (don't override with manual header)
-      req <- session |>
-        httr2::req_url_path("/admin/test/download-csv-all") |>
-        httr2::req_options(http_version = 0, verbose = TRUE)  # Verbose to see what's sent
+    if (file.exists(cookie_file_path)) {
+      cookie_lines <- readLines(cookie_file_path, warn = FALSE)
 
-      # Perform request
-      response <- req |>
-        httr2::req_error(is_error = function(resp) FALSE) |>
-        httr2::req_perform()
+      for (line in cookie_lines) {
+        original_line <- line
+
+        # Handle #HttpOnly_ prefix (special Netscape format for HttpOnly cookies)
+        if (grepl("^#HttpOnly_", line)) {
+          line <- sub("^#HttpOnly_", "", line)
+        } else if (grepl("^#", line) || grepl("^\\s*$", line)) {
+          # Skip actual comments and empty lines
+          next
+        }
+
+        # Parse Netscape cookie file format (tab-separated)
+        # Format: domain \t flag \t path \t secure \t expiration \t name \t value
+        parts <- strsplit(line, "\\t")[[1]]
+
+        if (length(parts) >= 7) {
+          cookie_name <- parts[6]
+          cookie_value <- parts[7]
+          cookie_pairs <- c(cookie_pairs, paste0(cookie_name, "=", cookie_value))
+        }
+      }
+    }
+
+    cookie_string <- paste(cookie_pairs, collapse="; ")
+    diagnostics$cookie_preview <- substr(cookie_string, 1, 300)
+    diagnostics$cookies_parsed_from_file <- length(cookie_pairs)
+
+    # Make request with manually constructed Cookie header
+    req <- session |>
+      httr2::req_url_path("/admin/test/download-csv-all") |>
+      httr2::req_headers(Cookie = cookie_string) |>
+      httr2::req_options(http_version = 0)
+
+    # Perform request
+    response <- req |>
+      httr2::req_error(is_error = function(resp) FALSE) |>
+      httr2::req_perform()
 
       # Capture response details
       diagnostics$csv_status <- httr2::resp_status(response)
@@ -1057,7 +1082,8 @@ trad_compliance <- tryCatch({
         data.frame(Info = "Cookie File Size", Value = as.character(diagnostics$cookie_file_size %||% 0), stringsAsFactors = FALSE),
         data.frame(Info = "Cookie File Num Cookies", Value = as.character(diagnostics$cookie_file_num_cookies %||% 0), stringsAsFactors = FALSE),
         data.frame(Info = "Cookie File Has Beevers", Value = as.character(diagnostics$cookie_file_has_beevers %||% FALSE), stringsAsFactors = FALSE),
-        data.frame(Info = "Cookie File Preview", Value = substr(diagnostics$cookie_file_preview %||% "none", 1, 500), stringsAsFactors = FALSE)
+        data.frame(Info = "Cookie File Preview", Value = substr(diagnostics$cookie_file_preview %||% "none", 1, 500), stringsAsFactors = FALSE),
+        data.frame(Info = "Cookies Parsed From File", Value = as.character(diagnostics$cookies_parsed_from_file %||% 0), stringsAsFactors = FALSE)
       ))
     }
 

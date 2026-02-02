@@ -97,6 +97,6 @@ ENV GOOGLE_SERVICE_ACCOUNT_JSON=""
 # Create output directory
 RUN mkdir -p docs && chmod 755 docs
 
-LABEL cache_bust="2026-02-02-v2"  
+LABEL cache_bust="2026-02-02-v3"  
 
 CMD ["bash"]
