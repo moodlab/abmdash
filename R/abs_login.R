@@ -136,7 +136,42 @@ abs_login <- function(base_url = "https://abs.la.utexas.edu",
   }
 
   if (!has_redirect) {
-    stop("Login failed: no redirect in response (likely invalid credentials)")
+    # Log diagnostic info to help debug GHA failures
+    diag_parts <- character()
+    if (!is.null(auth_result$components)) {
+      for (i in seq_along(auth_result$components)) {
+        comp <- auth_result$components[[i]]
+        effect_keys <- paste(names(comp$effects), collapse = ", ")
+        diag_parts <- c(diag_parts, paste0("Component ", i, " effects: [", effect_keys, "]"))
+
+        # Check for HTML with error messages
+        if (!is.null(comp$effects$html)) {
+          html <- comp$effects$html
+          # Look for validation error messages in the Livewire HTML
+          error_matches <- regmatches(html, gregexpr("fi-fo-field-wrp-error[^<]*<[^>]*>[^<]*<", html))
+          if (length(error_matches[[1]]) > 0) {
+            diag_parts <- c(diag_parts, paste0("Validation errors found in HTML"))
+          }
+          # Extract text content that looks like error messages
+          p_texts <- regmatches(html, gregexpr('data-validation-error="true"[^>]*>[^<]*<', html))
+          if (length(p_texts[[1]]) > 0) {
+            diag_parts <- c(diag_parts, paste0("Error text: ", substr(paste(p_texts[[1]], collapse = " | "), 1, 200)))
+          }
+        }
+
+        # Show snapshot memo name if available
+        if (!is.null(comp$snapshot)) {
+          snap <- tryCatch(jsonlite::fromJSON(comp$snapshot, simplifyVector = FALSE), error = function(e) NULL)
+          if (!is.null(snap$memo$name)) {
+            diag_parts <- c(diag_parts, paste0("Component name: ", snap$memo$name))
+          }
+        }
+      }
+    }
+    diag_msg <- paste(diag_parts, collapse = "; ")
+    message("Livewire response diagnostics: ", diag_msg)
+    message("Full response preview: ", substr(auth_body, 1, 500))
+    stop("Login failed: no redirect in response (likely invalid credentials). Diagnostics: ", diag_msg)
   }
 
   return(base_req)
