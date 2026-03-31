@@ -4,17 +4,13 @@
 \alias{download_abs_csv}
 \title{Download CSV from ABS Admin}
 \usage{
-download_abs_csv(
-  session,
-  csv_path = "/admin/test/download-csv-all",
-  save_path = NULL
-)
+download_abs_csv(session, tests_path = "/admin/tests", save_path = NULL, ...)
 }
 \arguments{
 \item{session}{An httr2 request object returned from abs_login()}
 
-\item{csv_path}{Character string with the path to the CSV endpoint.
-Default is "/admin/test/download-csv-all"}
+\item{tests_path}{Character string with the tests page path.
+Default is "/admin/tests"}
 
 \item{save_path}{Optional character string with file path to save the CSV.
 If NULL, returns the data frame without saving. Default is NULL.}
@@ -23,15 +19,13 @@ If NULL, returns the data frame without saving. Default is NULL.}
 Data frame containing the CSV data
 }
 \description{
-Downloads a CSV file from the ABS admin portal using an authenticated session.
+Downloads the complete test data CSV from the ABS admin portal using
+the Livewire downloadCompleteCsv action.
 }
 \examples{
 \dontrun{
 session <- abs_login()
 data <- download_abs_csv(session)
 head(data)
-
-# Or save to file
-data <- download_abs_csv(session, save_path = "output.csv")
 }
 }

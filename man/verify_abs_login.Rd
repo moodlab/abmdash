@@ -4,12 +4,12 @@
 \alias{verify_abs_login}
 \title{Verify ABS Login}
 \usage{
-verify_abs_login(session, test_path = "/admin/dashboard")
+verify_abs_login(session, test_path = "/admin")
 }
 \arguments{
 \item{session}{An httr2 request object returned from abs_login()}
 
-\item{test_path}{Character string with a path to test. Default is "/admin/dashboard"}
+\item{test_path}{Character string with a path to test. Default is "/admin"}
 }
 \value{
 Logical TRUE if login verification successful, FALSE otherwise

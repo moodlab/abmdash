@@ -4,13 +4,10 @@
 \alias{preview_abs_csv}
 \title{Download and Preview ABS CSV}
 \usage{
-preview_abs_csv(session, csv_path = "/admin/test/download-csv-all", n = 6)
+preview_abs_csv(session, n = 6)
 }
 \arguments{
 \item{session}{An httr2 request object returned from abs_login()}
-
-\item{csv_path}{Character string with the path to the CSV endpoint.
-Default is "/admin/test/download-csv-all"}
 
 \item{n}{Integer number of rows to display. Default is 6.}
 }

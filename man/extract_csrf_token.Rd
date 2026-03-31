@@ -13,7 +13,7 @@ extract_csrf_token(html)
 Character string with CSRF token, or NULL if not found
 }
 \description{
-Internal function to extract CSRF token from HTML content.
-Looks in both meta tags and hidden form inputs.
+Extracts CSRF token from Livewire data-csrf attribute, meta tags,
+or hidden form inputs.
 }
 \keyword{internal}

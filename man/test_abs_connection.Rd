@@ -8,6 +8,8 @@ test_abs_connection(base_url = "https://abs.la.utexas.edu", verbose = TRUE)
 }
 \arguments{
 \item{base_url}{Character string with the base URL. Default is "https://abs.la.utexas.edu"}
+
+\item{verbose}{Logical, whether to print diagnostic messages. Default is TRUE}
 }
 \value{
 Logical TRUE if server is reachable, FALSE otherwise

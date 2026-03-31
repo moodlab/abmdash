@@ -21,17 +21,12 @@ abs_login(
 An httr2 request object with authenticated session cookies
 }
 \description{
-Authenticates to the ABS (Attention Bias Study) admin portal and returns
-an authenticated httr2 request object that can be used for subsequent requests.
+Authenticates to the ABS (Attention Bias Study) admin portal via Livewire
+and returns an authenticated httr2 request object with session cookies.
 }
 \examples{
 \dontrun{
-# Login and get authenticated session
 session <- abs_login()
-
-# Use the session for subsequent requests
-response <- session |>
-  httr2::req_url_path_append("/admin/dashboard") |>
-  httr2::req_perform()
+data <- download_abs_csv(session)
 }
 }

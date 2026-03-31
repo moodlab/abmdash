@@ -779,280 +779,31 @@ gabm_compliance
 ::: {.card title="Traditional ABM Compliance"}
 
 ```{r}
-data.frame(
-  Message = "Traditional ABM Compliance Available Soon"
-) |> tinytable::tt()
-
-# Diagnostic code preserved for future debugging (currently disabled)
-if (FALSE) {
-  trad_compliance <- tryCatch({
-    # Initialize diagnostics environment (visible to error handler)
-    diagnostics <- new.env()
-    diagnostics$stage <- "initialization"
-
-  # Download traditional ABM data from ABS portal
+trad_compliance <- tryCatch({
   abs_username <- Sys.getenv("ABS_USERNAME")
   abs_password <- Sys.getenv("ABS_PASSWORD")
 
-  if (abs_username == "" || is.na(abs_username) || abs_password == "" || is.na(abs_password)) {
-    data.frame(
-      Message = "ABS credentials not configured (ABS_USERNAME or ABS_PASSWORD missing)"
-    ) |> tinytable::tt()
+  if (abs_username == "" || abs_password == "") {
+    data.frame(Message = "ABS credentials not configured") |>
+      tinytable::tt()
   } else {
-    # Login and download data with detailed diagnostics
-    diagnostics$stage <- "attempting login"
+    result <- abmdash::get_trad_compliance_summary()
 
-    # Try to login and capture detailed information
-    # Capture console output to get cookie debug messages
-    login_messages <- character()
-    login_result <- tryCatch({
-      session <- withCallingHandlers(
-        abmdash::abs_login(check_connection = FALSE),
-        message = function(m) {
-          login_messages <<- c(login_messages, conditionMessage(m))
-        }
-      )
-      list(success = TRUE, session = session, error = NULL, messages = login_messages)
-    }, error = function(e) {
-      list(success = FALSE, session = NULL, error = as.character(e$message), messages = login_messages)
-    })
-
-    diagnostics$login_success <- login_result$success
-    diagnostics$login_error <- if (!is.null(login_result$error)) substr(login_result$error, 1, 200) else "none"
-    diagnostics$login_messages <- if (!is.null(login_result$messages)) paste(login_result$messages, collapse = " | ") else "none"
-
-    # Check if cookie file exists and has content
-    cookie_path <- file.path(tempdir(), "abs_session_cookies.txt")
-    diagnostics$cookie_file_exists <- file.exists(cookie_path)
-    diagnostics$cookie_file_size <- if (file.exists(cookie_path)) file.size(cookie_path) else 0
-
-    # Read cookie file contents
-    if (file.exists(cookie_path)) {
-      cookie_contents <- readLines(cookie_path, warn = FALSE)
-      diagnostics$cookie_file_preview <- substr(paste(cookie_contents, collapse = " | "), 1, 300)
-      # Count actual cookie lines (non-comment, non-empty)
-      cookie_lines <- cookie_contents[!grepl("^#|^\\s*$", cookie_contents)]
-      diagnostics$cookie_file_num_cookies <- length(cookie_lines)
-      diagnostics$cookie_file_has_beevers <- any(grepl("beevers_session", cookie_contents))
-    } else {
-      diagnostics$cookie_file_preview <- "file not found"
-      diagnostics$cookie_file_num_cookies <- 0
-      diagnostics$cookie_file_has_beevers <- FALSE
-    }
-
-    if (!login_result$success) {
-      stop("Login failed: ", login_result$error)
-    }
-
-    diagnostics$stage <- "downloading CSV"
-    session <- login_result$session
-    diagnostics$session_class <- class(session)[1]
-
-    # DEFINITIVE TEST: Make request to abs.la.utexas.edu to see if cookies are sent
-    # (httpbin.org won't work - different domain!)
-    test_req <- session |>
-      httr2::req_url("https://abs.la.utexas.edu/admin/dashboard") |>
-      httr2::req_error(is_error = function(resp) FALSE) |>
-      httr2::req_perform()
-
-    test_status <- httr2::resp_status(test_req)
-    test_content_type <- httr2::resp_header(test_req, "content-type") %||% "unknown"
-    # If we're authenticated, we should get HTML dashboard (200)
-    # If not authenticated, we get redirected to login (302) or login page HTML
-    diagnostics$test_request_status <- test_status
-    diagnostics$test_request_authenticated <- (test_status == 200 && grepl("html", test_content_type, ignore.case = TRUE))
-
-    # Check if session has extracted cookies attribute
-    session_cookies <- attr(session, "session_cookies")
-    diagnostics$has_cookies_attr <- !is.null(session_cookies)
-    diagnostics$cookies_attr_length <- if (!is.null(session_cookies)) length(session_cookies) else 0
-    diagnostics$cookies_attr_class <- if (!is.null(session_cookies)) class(session_cookies)[1] else "NULL"
-    diagnostics$cookies_attr_names <- if (!is.null(session_cookies)) paste(names(session_cookies), collapse = ", ") else "none"
-    # Show raw content of each cookie (first 100 chars each)
-    if (!is.null(session_cookies) && length(session_cookies) > 0) {
-      cookie_previews <- sapply(seq_along(session_cookies), function(i) {
-        paste0("Cookie", i, ":", substr(session_cookies[[i]], 1, 100))
-      })
-      diagnostics$cookies_raw_content <- paste(cookie_previews, collapse = " || ")
-    } else {
-      diagnostics$cookies_raw_content <- "none"
-    }
-
-    # Manually parse cookie file (including #HttpOnly_ lines)
-    cookie_file_path <- file.path(tempdir(), "abs_session_cookies.txt")
-    cookie_pairs <- character()
-
-    if (file.exists(cookie_file_path)) {
-      cookie_lines <- readLines(cookie_file_path, warn = FALSE)
-
-      for (line in cookie_lines) {
-        original_line <- line
-
-        # Handle #HttpOnly_ prefix (special Netscape format for HttpOnly cookies)
-        if (grepl("^#HttpOnly_", line)) {
-          line <- sub("^#HttpOnly_", "", line)
-        } else if (grepl("^#", line) || grepl("^\\s*$", line)) {
-          # Skip actual comments and empty lines
-          next
-        }
-
-        # Parse Netscape cookie file format (tab-separated)
-        # Format: domain \t flag \t path \t secure \t expiration \t name \t value
-        parts <- strsplit(line, "\\t")[[1]]
-
-        if (length(parts) >= 7) {
-          cookie_name <- parts[6]
-          cookie_value <- parts[7]
-          cookie_pairs <- c(cookie_pairs, paste0(cookie_name, "=", cookie_value))
-        }
-      }
-    }
-
-    cookie_string <- paste(cookie_pairs, collapse="; ")
-    diagnostics$cookie_preview <- substr(cookie_string, 1, 300)
-    diagnostics$cookies_parsed_from_file <- length(cookie_pairs)
-
-    # Make request with manually constructed Cookie header
-    req <- session |>
-      httr2::req_url_path("/admin/test/download-csv-all") |>
-      httr2::req_headers(Cookie = cookie_string) |>
-      httr2::req_options(http_version = 0)
-
-    # Perform request
-    response <- req |>
-      httr2::req_error(is_error = function(resp) FALSE) |>
-      httr2::req_perform()
-
-    # Capture response details
-    diagnostics$csv_status <- httr2::resp_status(response)
-    diagnostics$csv_content_type <- httr2::resp_header(response, "content-type") %||% "unknown"
-    body <- httr2::resp_body_string(response)
-    diagnostics$csv_body_length <- nchar(body)
-    diagnostics$csv_body_preview <- substr(body, 1, 500)
-
-    # Try to extract HTML title if it's HTML
-    if (grepl("text/html", diagnostics$csv_content_type, ignore.case = TRUE)) {
-      title_match <- regmatches(body, regexpr("<title>([^<]*)</title>", body, ignore.case = TRUE))
-      diagnostics$html_title <- if (length(title_match) > 0) gsub("</?title>", "", title_match[1], ignore.case = TRUE) else "no title found"
-    }
-
-    if (httr2::resp_status(response) == 200) {
-      trad_data <- utils::read.csv(text = body, stringsAsFactors = FALSE)
-    } else {
-      stop("CSV request failed with status: ", httr2::resp_status(response))
-    }
-
-    # Store diagnostics
-    diagnostics$raw_rows <- nrow(trad_data)
-    diagnostics$raw_cols <- paste(names(trad_data), collapse = ", ")
-    diagnostics$has_start_time <- "start_time" %in% names(trad_data)
-
-    if ("start_time" %in% names(trad_data)) {
-      diagnostics$start_time_class <- class(trad_data$start_time)[1]
-      diagnostics$start_time_sample <- paste(head(trad_data$start_time, 2), collapse = " | ")
-      diagnostics$start_time_length <- length(trad_data$start_time)
-    }
-
-    # Process the data
-    diagnostics$stage <- "processing timestamps"
-    trad_data$start_time <- as.POSIXct(trad_data$start_time, tz = "UTC")
-
-    # Filter out test IDs
-    diagnostics$stage <- "filtering test IDs"
-    is_test <- grepl("test", trad_data$subject_id, ignore.case = TRUE)
-    trad_data <- trad_data[!is_test, ]
-    diagnostics$filtered_rows <- nrow(trad_data)
-
-    # Get first session date per participant
-    diagnostics$stage <- "extracting session 1 data"
-    session_1_data <- trad_data[trad_data$session == 1, ]
-    diagnostics$session1_rows <- nrow(session_1_data)
-
-    diagnostics$stage <- "aggregating first sessions"
-    first_sessions <- aggregate(start_time ~ subject_id,
-                               data = session_1_data,
-                               FUN = min)
-    diagnostics$first_sessions_rows <- nrow(first_sessions)
-    names(first_sessions) <- c("id", "start_date")
-
-    # Calculate weeks from start
-    diagnostics$stage <- "calculating weeks from start"
-    first_sessions$weeks_from_start <- as.numeric(
-      difftime(Sys.time(), first_sessions$start_date, units = "weeks")
-    )
-
-    # Filter to active participants (within 5 weeks)
-    diagnostics$stage <- "filtering to active participants"
-    active <- first_sessions[first_sessions$weeks_from_start <= 5, ]
-    diagnostics$active_rows <- nrow(active)
-
-    if (nrow(active) > 0) {
-      # Count sessions per participant
-      diagnostics$stage <- "counting sessions per participant"
-      session_counts <- aggregate(session ~ subject_id,
-                                 data = trad_data,
-                                 FUN = length)
-      diagnostics$session_counts_rows <- nrow(session_counts)
-
-      names(session_counts) <- c("id", "total_sessions")
-
-      # Merge - use safer approach
-      diagnostics$stage <- "merging active with session_counts"
-      if (nrow(session_counts) > 0) {
-        # Capture ID information for debugging
-        active_ids <- active$id
-        session_ids <- session_counts$id
-        diagnostics$active_ids_sample <- paste(head(active_ids, 3), collapse = ", ")
-        diagnostics$session_ids_sample <- paste(head(session_ids, 3), collapse = ", ")
-        diagnostics$ids_overlap <- sum(active_ids %in% session_ids)
-
-        active_merged <- merge(active, session_counts, by = "id", all.x = TRUE)
-        diagnostics$merged_rows <- nrow(active_merged)
-
-        # Replace NA with 0
-        if ("total_sessions" %in% names(active_merged)) {
-          diagnostics$na_count <- sum(is.na(active_merged$total_sessions))
-          active_merged$total_sessions[is.na(active_merged$total_sessions)] <- 0
-        } else {
-          active_merged$total_sessions <- 0
-        }
-        active <- active_merged
-      } else {
-        # No sessions found - add total_sessions column with 0
-        active$total_sessions <- 0
-      }
-
-      # Calculate expected and status
-      diagnostics$stage <- "calculating expected sessions and status"
-      active$current_week <- pmin(ceiling(active$weeks_from_start), 4)
-      active$expected <- pmin(round(active$weeks_from_start * 4), 16)
-      active$behind <- active$expected - active$total_sessions
-
-      active$status <- ifelse(
-        active$behind > 0,
-        paste("Behind by", round(active$behind)),
-        "On Track"
-      )
-
-      # Create display data
-      diagnostics$stage <- "creating display data"
+    if (nrow(result) > 0) {
       display_data <- data.frame(
-        "Participant ID" = active$id,
-        "Week" = active$current_week,
-        "Sessions Completed" = active$total_sessions,
-        "Expected Sessions" = active$expected,
-        "Status" = active$status,
+        "Participant ID" = result$id,
+        "Week" = result$current_week,
+        "Sessions Completed" = result$total_sessions,
+        "Expected Sessions" = result$expected_sessions,
+        "Status" = result$status,
         stringsAsFactors = FALSE,
         check.names = FALSE
       )
 
-      # Create table with highlighting
-      diagnostics$stage <- "creating table"
       tt_table <- display_data |>
         tinytable::tt(caption = "Active Participants")
 
-      # Highlight rows that are behind
-      behind_rows <- which(active$behind > 0)
+      behind_rows <- which(result$sessions_behind > 0)
       if (length(behind_rows) > 0) {
         tt_table <- tt_table |>
           tinytable::style_tt(i = behind_rows, background = "#ffebee")
@@ -1065,84 +816,13 @@ if (FALSE) {
     }
   }
 }, error = function(e) {
-  # Display error with all diagnostic information
-  if (exists("diagnostics") && is.environment(diagnostics)) {
-    # Build comprehensive diagnostic output
-    diag_parts <- list(
-      data.frame(Info = "Stage", Value = diagnostics$stage %||% "unknown", stringsAsFactors = FALSE)
-    )
-
-    # Login diagnostics
-    if (!is.null(diagnostics$login_success)) {
-      diag_parts <- append(diag_parts, list(
-        data.frame(Info = "Login Success", Value = as.character(diagnostics$login_success), stringsAsFactors = FALSE),
-        data.frame(Info = "Login Error", Value = diagnostics$login_error %||% "none", stringsAsFactors = FALSE),
-        data.frame(Info = "Login Messages", Value = substr(diagnostics$login_messages %||% "none", 1, 500), stringsAsFactors = FALSE),
-        data.frame(Info = "Cookie File Exists", Value = as.character(diagnostics$cookie_file_exists %||% FALSE), stringsAsFactors = FALSE),
-        data.frame(Info = "Cookie File Size", Value = as.character(diagnostics$cookie_file_size %||% 0), stringsAsFactors = FALSE),
-        data.frame(Info = "Cookie File Num Cookies", Value = as.character(diagnostics$cookie_file_num_cookies %||% 0), stringsAsFactors = FALSE),
-        data.frame(Info = "Cookie File Has Beevers", Value = as.character(diagnostics$cookie_file_has_beevers %||% FALSE), stringsAsFactors = FALSE),
-        data.frame(Info = "Cookie File Preview", Value = substr(diagnostics$cookie_file_preview %||% "none", 1, 500), stringsAsFactors = FALSE),
-        data.frame(Info = "Cookies Parsed From File", Value = as.character(diagnostics$cookies_parsed_from_file %||% 0), stringsAsFactors = FALSE)
-      ))
-    }
-
-    # Session diagnostics
-    if (!is.null(diagnostics$session_class)) {
-      diag_parts <- append(diag_parts, list(
-        data.frame(Info = "Session Class", Value = diagnostics$session_class %||% "unknown", stringsAsFactors = FALSE),
-        data.frame(Info = "Test Request Status", Value = as.character(diagnostics$test_request_status %||% "unknown"), stringsAsFactors = FALSE),
-        data.frame(Info = "Test Request Authenticated", Value = as.character(diagnostics$test_request_authenticated %||% FALSE), stringsAsFactors = FALSE),
-        data.frame(Info = "Has Cookies Attr", Value = as.character(diagnostics$has_cookies_attr %||% FALSE), stringsAsFactors = FALSE),
-        data.frame(Info = "Cookies Attr Length", Value = as.character(diagnostics$cookies_attr_length %||% 0), stringsAsFactors = FALSE),
-        data.frame(Info = "Cookies Attr Class", Value = diagnostics$cookies_attr_class %||% "unknown", stringsAsFactors = FALSE),
-        data.frame(Info = "Cookies Attr Names", Value = diagnostics$cookies_attr_names %||% "none", stringsAsFactors = FALSE),
-        data.frame(Info = "Cookies Raw Content", Value = substr(diagnostics$cookies_raw_content %||% "none", 1, 500), stringsAsFactors = FALSE),
-        data.frame(Info = "Cookie Preview", Value = diagnostics$cookie_preview %||% "none", stringsAsFactors = FALSE)
-      ))
-    }
-
-    # CSV download diagnostics
-    if (!is.null(diagnostics$csv_status)) {
-      diag_parts <- append(diag_parts, list(
-        data.frame(Info = "CSV Status", Value = as.character(diagnostics$csv_status), stringsAsFactors = FALSE),
-        data.frame(Info = "CSV Error", Value = substr(diagnostics$csv_error %||% "none", 1, 300), stringsAsFactors = FALSE),
-        data.frame(Info = "Content-Type", Value = diagnostics$csv_content_type %||% "unknown", stringsAsFactors = FALSE),
-        data.frame(Info = "Body Length", Value = as.character(diagnostics$csv_body_length %||% 0), stringsAsFactors = FALSE),
-        data.frame(Info = "HTML Title", Value = substr(diagnostics$html_title %||% "N/A", 1, 200), stringsAsFactors = FALSE),
-        data.frame(Info = "Body Preview", Value = substr(diagnostics$csv_body_preview %||% "none", 1, 500), stringsAsFactors = FALSE)
-      ))
-    }
-
-    # Data processing diagnostics
-    if (!is.null(diagnostics$raw_rows)) {
-      diag_parts <- append(diag_parts, list(
-        data.frame(Info = "Parsed Rows", Value = as.character(diagnostics$raw_rows), stringsAsFactors = FALSE),
-        data.frame(Info = "Columns", Value = substr(diagnostics$raw_cols %||% "N/A", 1, 200), stringsAsFactors = FALSE)
-      ))
-    }
-
-    # Combine all diagnostics
-    diag_df <- do.call(rbind, diag_parts)
-    diag_df <- rbind(
-      data.frame(Info = "Error Message", Value = substr(as.character(e$message), 1, 500), stringsAsFactors = FALSE),
-      diag_df
-    )
-
-    diag_df |> tinytable::tt()
-  } else {
-    data.frame(
-      Info = "Error",
-      Value = substr(as.character(e$message), 1, 500),
-      stringsAsFactors = FALSE
-    ) |>
-      tinytable::tt()
-  }
+  data.frame(
+    Message = paste("Error:", substr(e$message, 1, 100))
+  ) |>
+    tinytable::tt()
 })
 
-  trad_compliance
-} # End of if (FALSE) - diagnostic code disabled
-
+trad_compliance
 ```
 
 :::
