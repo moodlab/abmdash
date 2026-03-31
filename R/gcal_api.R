@@ -205,8 +205,58 @@ list_calendars <- function() {
     calendars_data <- httr2::resp_body_json(response)
     
     return(calendars_data)
-    
+
   }, error = function(e) {
     stop("Google Calendar List API call failed: ", e$message)
   })
+}
+
+
+#' Get Combined Calendar Events from Multiple Calendars
+#'
+#' Fetches events from multiple Google Calendar IDs and merges them
+#' into a single result. If one calendar errors, events from the
+#' other calendars are still returned.
+#'
+#' @param calendar_ids Character vector of calendar IDs
+#' @param time_min RFC3339 format start time filter
+#' @param time_max RFC3339 format end time filter
+#' @param max_results Integer maximum events per calendar. Default is 100
+#'
+#' @return List with \code{$items} containing all events from all calendars
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' events <- get_combined_calendar_events(
+#'   calendar_ids = c("calendar1@group.calendar.google.com",
+#'                    "calendar2@group.calendar.google.com"),
+#'   time_min = paste0(Sys.Date(), "T00:00:00Z"),
+#'   time_max = paste0(Sys.Date() + 7, "T23:59:59Z")
+#' )
+#' }
+get_combined_calendar_events <- function(calendar_ids,
+                                          time_min = NULL,
+                                          time_max = NULL,
+                                          max_results = 100) {
+
+  all_items <- list()
+
+  for (cal_id in calendar_ids) {
+    tryCatch({
+      result <- get_calendar_events(
+        calendar_id = cal_id,
+        time_min = time_min,
+        time_max = time_max,
+        max_results = max_results
+      )
+      if (!is.null(result$items)) {
+        all_items <- c(all_items, result$items)
+      }
+    }, error = function(e) {
+      message("Warning: failed to fetch calendar ", cal_id, ": ", e$message)
+    })
+  }
+
+  list(items = all_items)
 }

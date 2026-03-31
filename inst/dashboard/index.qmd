@@ -38,9 +38,12 @@ calendar_events <- tryCatch({
     today_start <- paste0(Sys.Date(), "T00:00:00Z")
     next_week_end <- paste0(Sys.Date() + 7, "T23:59:59Z")
     
-    # Use the specific Calendar ID for "Research Team Schedule"
-    events <- abmdash::get_calendar_events(
-      calendar_id = "ff5b00ef944953433c805960d64adae47a456ee0d2515410cc648f65bafc2635@group.calendar.google.com",
+    # Fetch events from both Research Team Schedule and Clinician Scheduling calendars
+    events <- abmdash::get_combined_calendar_events(
+      calendar_ids = c(
+        "ff5b00ef944953433c805960d64adae47a456ee0d2515410cc648f65bafc2635@group.calendar.google.com",
+        "5579dfb7124755be5221137e0f182c5ac8ea2d72001e9c23726fdaecbbccf242@group.calendar.google.com"
+      ),
       time_min = today_start,
       time_max = next_week_end,
       max_results = 100
@@ -55,10 +58,10 @@ calendar_events <- tryCatch({
     
     # Format events for display
     if (is.list(events) && "items" %in% names(events) && length(events$items) > 0) {
-      # Filter events to only include those with "UT Attention Bias Modification" in the title
+      # Filter events to participant-related sessions only
       filtered_events <- Filter(function(event) {
         summary <- event$summary %||% ""
-        grepl("UT Attention Bias Modification", summary, ignore.case = TRUE)
+        grepl("UT Attention Bias Modification|Clinician Follow-Up Interview", summary, ignore.case = TRUE)
       }, events$items)
 
       if (length(filtered_events) > 0) {
@@ -112,20 +115,32 @@ calendar_events <- tryCatch({
             }
           }
 
+          # For clinician calendar events, extract clinician name from title
+          # e.g., "Clinician Follow-Up Interview: Ariel"
+          if (is.na(clinician_name) && grepl("Clinician Follow-Up Interview:", summary)) {
+            title_clinician <- sub(".*Clinician Follow-Up Interview:\\s*", "", summary)
+            title_clinician <- trimws(title_clinician)
+            if (nchar(title_clinician) > 0) {
+              clinician_name <- title_clinician
+            }
+          }
+
           Clinician[i] <- if (!is.na(clinician_name)) clinician_name else "TBD"
           Participant_Status[i] <- participant_status
 
-          # Extract session type from description
-          session_type <- "Screening"  # Default
-          if (!is.null(event$description)) {
-            # Look for "Which Session Event?:" in the description
-            match <- regmatches(event$description, regexpr("Which Session Event\\?:\\s*([^<\n]+)", event$description, perl = TRUE))
-            if (length(match) > 0) {
-              # Extract the text after "Which Session Event?:"
-              session_text <- sub("Which Session Event\\?:\\s*", "", match, perl = TRUE)
-              session_text <- trimws(session_text)
-              if (nchar(session_text) > 0) {
-                session_type <- session_text
+          # Extract session type
+          session_type <- "Screening"  # Default for ABM calendar events
+          if (grepl("Clinician Follow-Up Interview", summary)) {
+            session_type <- "Follow-Up Interview"
+            # For follow-ups, extract week from description (e.g., "Which Session Event?: Wk. 3")
+            if (!is.null(event$description)) {
+              match <- regmatches(event$description, regexpr("Which Session Event\\?:\\s*([^<\n]+)", event$description, perl = TRUE))
+              if (length(match) > 0) {
+                session_text <- sub("Which Session Event\\?:\\s*", "", match, perl = TRUE)
+                session_text <- trimws(session_text)
+                if (nchar(session_text) > 0) {
+                  session_type <- session_text
+                }
               }
             }
           }
@@ -206,8 +221,8 @@ calendar_events <- tryCatch({
         events_df <- events_df[order(events_df$SortDate), ]
       } else {
         data.frame(
-          Time = "No ABM events",
-          Event = "No UT Attention Bias Modification events scheduled",
+          Time = "No events",
+          Event = "No participant sessions scheduled",
           Clinician = "",
           Session = "",
           Participant_Accepted = "",
