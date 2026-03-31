@@ -817,7 +817,7 @@ trad_compliance <- tryCatch({
   }
 }, error = function(e) {
   data.frame(
-    Message = paste("Error:", substr(e$message, 1, 100))
+    Message = paste("Error:", e$message)
   ) |>
     tinytable::tt()
 })
