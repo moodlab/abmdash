@@ -89,7 +89,6 @@ abs_login <- function(base_url = "https://abs.la.utexas.edu",
   password <- gsub('^["\']|["\']$', '', password)
 
   message("Submitting credentials via Livewire...")
-  message("  Email length: ", nchar(username), ", first 5 chars: ", substr(username, 1, 5))
 
   payload <- list(
     `_token` = jsonlite::unbox(csrf_token),

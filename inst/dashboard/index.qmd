@@ -787,7 +787,7 @@ trad_compliance <- tryCatch({
     data.frame(Message = "ABS credentials not configured") |>
       tinytable::tt()
   } else {
-    result <- abmdash::get_trad_compliance_summary(verbose = TRUE)
+    result <- abmdash::get_trad_compliance_summary()
 
     if (nrow(result) > 0) {
       display_data <- data.frame(
