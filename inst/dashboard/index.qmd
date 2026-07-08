@@ -733,7 +733,8 @@ if (!is.null(enrollment_stats$monthly_breakdown) && nrow(enrollment_stats$monthl
 ```{r}
 # Get gamified ABM compliance
 gabm_compliance <- tryCatch({
-  gabm_sheet_url <- "https://docs.google.com/spreadsheets/d/1Sz3BOKVIx4TQbMfRpgYIc_Cyt-p5dU1S1DKGr-yaLmk/edit?gid=0#gid=0"
+  # Updated 2026-07-08: Arcade Therapeutics created new sheet after system update on 2025-04-16 caused data sync outage. Old sheet kept as archive.
+  gabm_sheet_url <- "https://docs.google.com/spreadsheets/d/1ff90Q2V_WoKm2Rw7w1Ur0UrNIsmxu5TEWPoPcNtooHE/edit?gid=0#gid=0"
 
   # Get the compliance data
   result <- abmdash::get_participant_summary(gabm_sheet_url)
