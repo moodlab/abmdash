@@ -69,3 +69,7 @@ status: complete
 ### Idempotence & Recovery
 - Safe retry: re-run builder steps; prose files idempotent.
 - Rollback: git revert.
+
+### Carryover Log
+- Cycle 1 (PR #46): 2 fix-now (ci green-run cause misstatement; plan-file probe rg -oN defect) + 2 fold-ins (13387 report mislabeled screening→enrollment; GOOD example impute-0→drop-NA) + 1 coverage gap (google/abs error strings unverified → 2 fabricated strings found + fixed: "Failed to read private key"→"Failed to parse private key PEM file", "Failed to parse"→"Failed to load tests page"). Resolved in 4183128. Status: resolved.
+- Cycle 2 (PR #46): clean pass both reviewers; 15 probes re-passed with rg -oI corrections. Status: resolved.
