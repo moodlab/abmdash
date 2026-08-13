@@ -51,8 +51,8 @@ request naming so POST bodies do not collide on hash-only names.
 
 ## 3. Token redaction
 
-`tests/testthat/helper-harness.R` ships a `token_scrub_redactor` pattern
-(used by the httptest2 dry-run) that:
+`tests/testthat/test-harness-httptest2-dryrun.R` defines a
+`token_scrub_redactor` pattern (used by the httptest2 dry-run) that:
 
 - redacts request/response headers via `redact_headers()` (`Authorization`,
   `X-REDCap-Token`);
@@ -91,9 +91,9 @@ coerce `""` to NA:
 - Behavior-lock snapshots pin row order exactly (`expect_snapshot_locked()`
   compares the full object; no normalization).
 - If a module's output order is legitimately unstable, the TEST must sort
-  explicitly before locking (`sort_by` argument is the test's choice) — the
-  snapshot itself NEVER normalizes, so a silent reorder of output fails the
-  lock.
+  explicitly BEFORE calling `expect_snapshot_locked()` — there is no `sort_by`
+  argument. The snapshot itself NEVER normalizes, so a silent reorder of
+  output fails the lock.
 - Recording HTTP fixtures: httptest2 derives mock file names from the request
   URL/method/body hash — no manual ordering concerns.
 
@@ -104,3 +104,7 @@ as `<module>.rds` (e.g. `trad.rds`). `expect_snapshot_locked("trad", value)`
 creates the snapshot on first local run (skip + rerun), fails if it is missing
 in CI, and compares with waldo on every subsequent run. Commit generated
 snapshots with the tests that produce them.
+
+Snapshot files (`.rds`) are pinned to the R version that created them: CI pins
+R 4.5.1 (`r-version: '4.5.1'` in `.github/workflows/test.yml`). Developers on
+other R versions may need to regenerate snapshots locally before committing.

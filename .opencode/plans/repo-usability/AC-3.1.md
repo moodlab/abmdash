@@ -10,7 +10,7 @@ status: complete
 ## Executable Spec
 - **predicate (9 conjuncts, ALL must hold):**
   1. DETERMINISM: two consecutive `make test` runs → `diff -r` of `_snaps/` + fixture outputs byte-identical; harness pins Sys.time() AND Sys.Date() (local_mocked_bindings(.package="base") both + TZ via withr::local_envvar) AND unsets API creds (local_isolated_env); pilot asserts EXACT value (e.g. weeks_from_start == 4.43) that fails if clock mock did not propagate.
-  2. NON-TAUTOLOGICAL LOCK: snapshot covers full 8-column output of process_trad_compliance_data; mutating sessions_per_week*4→*3 or round(...,2)→round(...,1) FAILS the lock.
+  2. NON-TAUTOLOGICAL LOCK: snapshot covers full 8-column output of process_trad_compliance_data; mutating sessions_per_week*4→*3 or round(...,2)→round(...,1) FAILS the lock. Behavior is locked, not code — mutations producing identical output do not trip the lock. The sessions_per_week*4→*3 mutation is observable only with cap-binding fixture data (max expected_sessions >= 12); round(...,2)→round(...,1) remains the proven tautology-catch trigger.
   3. PILOT SPECIFICS: frozen clock 2026-03-20 → nrow==2 (P001 ~2.7wk, P002 ~0.7wk active), P003 excluded (old). Existing test-trad-compliance.R passes VACUOUSLY (stale 2026-03-01 fixture dates vs real clock → all filtered by active_window_weeks=5 → empty result) — pilot must REPLACE vacuity.
   4. OFFLINE-GREEN: full suite green with all API creds unset (REDCAP_API_TOKEN, GOOGLE_SERVICE_ACCOUNT_JSON, ABS_USERNAME, ABS_PASSWORD, STATICRYPT_PASSWORD).
   5. CI EXERCISES LOCK: NEW .github/workflows/test.yml runs `make test` with NO API-cred secrets. (NO test job exists today — verified; build-dashboard.yml UNTOUCHED.)

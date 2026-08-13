@@ -10,7 +10,7 @@
 #   * local_isolated_env()              — unsets all API credentials
 #   * expect_snapshot_locked(module, value) — save-or-compare RDS snapshot
 #
-# See tests/testthat/../RECORDING.md for the record/redact/commit workflow.
+# See RECORDING.md (repo root) for the record/redact/commit workflow.
 
 #' Load a namespaced test fixture
 #'
