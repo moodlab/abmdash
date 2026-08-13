@@ -2,7 +2,7 @@
 ac: 2.1
 depends_on: wave-1 shipped (docs/okf/ bundle, codegraph README section)
 risk: medium
-status: spec
+status: complete
 ---
 
 # AC-2.1: Troubleshooting vignettes for non-engineers
@@ -18,9 +18,9 @@ status: spec
   rg -N '^```\{r' vignettes/*.Rmd | rg -v 'eval=F' && { echo "P2 fail: chunk missing eval=F"; FAIL=1; }
   rg -N 'eval=T' vignettes/*.Rmd && { echo "P2 fail: eval=T"; FAIL=1; }
   rg -o '`r [^`]+`' vignettes/*.Rmd | rg 'call_redcap_api|get_redcap_records|get_eligible_participants|get_weekly_screening_stats|read_google_sheet|get_calendar_events|list_calendars|abs_login|download_abs_csv|test_abs_connection|verify_abs_login' && { echo "P3 fail: inline API call"; FAIL=1; }
-  rg -oN 'make [a-z-]+' vignettes/*.Rmd | cut -d' ' -f2 | sort -u | rg -v '^(test|test-trad|docker-build|docker-render|docker-test-auth|lint|serve)$' && { echo "P4 fail: invented target"; FAIL=1; }
-  rg -oN '[a-z-]+\.sh' vignettes/*.Rmd | sort -u | rg -v '^(build-dashboard|debug-docker|load-env)\.sh$' && { echo "P5 fail: invented script"; FAIL=1; }
-  rg -oN '[A-Z][A-Z_]{4,}' vignettes/*.Rmd | sort -u | rg '_TOKEN$|_JSON$|_USERNAME$|_PASSWORD$' | rg -v '^(REDCAP_API_TOKEN|GOOGLE_SERVICE_ACCOUNT_JSON|ABS_USERNAME|ABS_PASSWORD|STATICRYPT_PASSWORD)$' && { echo "P6 fail: wrong env var"; FAIL=1; }
+  rg -oI 'make [a-z-]+' vignettes/*.Rmd | cut -d' ' -f2 | sort -u | rg -v '^(test|test-trad|docker-build|docker-render|docker-test-auth|lint|serve)$' && { echo "P4 fail: invented target"; FAIL=1; }
+  rg -oI '[a-z-]+\.sh' vignettes/*.Rmd | sort -u | rg -v '^(build-dashboard|debug-docker|load-env)\.sh$' && { echo "P5 fail: invented script"; FAIL=1; }
+  rg -oI '[A-Z][A-Z_]{4,}' vignettes/*.Rmd | sort -u | rg '_TOKEN$|_JSON$|_USERNAME$|_PASSWORD$' | rg -v '^(REDCAP_API_TOKEN|GOOGLE_SERVICE_ACCOUNT_JSON|ABS_USERNAME|ABS_PASSWORD|STATICRYPT_PASSWORD)$' && { echo "P6 fail: wrong env var"; FAIL=1; }
   rg -q 'as.numeric' vignettes/*redcap*.Rmd && rg -qi 'row names contain missing' vignettes/*redcap*.Rmd || { echo "P7 fail"; FAIL=1; }
   for f in vignettes/*.Rmd; do rg -qi 'if you see|error.*cause.*fix|cause' "$f" || { echo "P8 fail: $f"; FAIL=1; }; done
   rg -q 'build-image' vignettes/*ci*.Rmd && rg -q 'build-dashboard' vignettes/*ci*.Rmd || { echo "P9 fail"; FAIL=1; }
@@ -54,13 +54,17 @@ status: spec
 - risk: medium — no code changes, HIGH user-harm if commands wrong.
 
 ### Progress
-- [ ] vignettes written — pending
+- [x] vignettes written — done (2026-08-13): 5 vignettes created, all 15 probes pass, all 5 render hermetic (eval=FALSE) via rmarkdown::render
+- [x] PR review round 1 fixes — done (2026-08-13): ci green-row cause corrected (unreachable data source → red, not green; build-dashboard.sh:131 exit 1); redcap report mapping fixed (13387 = enrollment per R/redcap_api.R:612, not screening); GOOD example reordered to drop-NA pattern (codebase never imputes 0); probe P4/P5/P6 changed to `rg -oI`; google "Failed to read private key" → real openssl text "Failed to parse private key PEM file"; abs "Failed to parse" → real "Failed to load tests page". All 15 probes pass post-fix.
 
 ### Decision Log
 - spec-resolved — VignetteBuilder: knitr + Suggests: knitr; knitr already in renv.lock L694 (no lock change); .Rbuildignore must NOT get ^vignettes.
 
 ### Surprises & Discoveries
-- (none yet)
+- P4, P5 and P6 probes as written are structurally broken with multiple files: `rg -o` prefixes every match with `path:`, so the `^(build-dashboard|...)$` / `^(REDCAP_API_TOKEN|...)$` anchors never match and even LEGITIMATE scripts/env vars are reported as failures (P4 only survived because its `cut -d' ' -f2` happened to strip the prefix). Fixed by running the equivalent check with `rg -oI` (match-only, no filename) and updating all three verbatim probe lines P4/P5/P6 in the spec to `rg -oI`; content side was verified clean against the intent.
+- "make sure" and "make targets" are natural-English phrases that trip the P4 `make [a-z-]+` regex — rephrased prose to "confirm"/"build targets" to keep the probe meaningful (an invented-target check shouldn't fire on prose). The round-1 review-fix re-introduced this trap with "make someone look eligible" — the probe caught it again, rephrased to "let someone look eligible". The probe earns its keep: it fires on prose AND invented commands.
+- The redcap vignette placeholder `REDCAP_API_TOKEN=YOUR_TOKEN` violates P6 (ends in _TOKEN) — placeholder rewritten as `<your-token>`.
+- rmarkdown::render() of all 5 vignettes succeeds with zero execution — eval=FALSE hermeticity verified end-to-end, not just by regex.
 
 ### Idempotence & Recovery
 - Safe retry: re-run builder steps; prose files idempotent.

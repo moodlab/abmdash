@@ -122,6 +122,16 @@ Regenerate the index whenever it goes stale:
 - before starting an agent session that needs codebase navigation
 - any time `codegraph status` reports the index is out of date
 
+### Troubleshooting
+
+Things breaking? The troubleshooting vignettes are written for non-engineers and follow an "if you see X, here's the cause and the fix" pattern:
+
+- [REDCap data access](vignettes/redcap-troubleshooting.Rmd) — missing token, the `""` vs `NA` bug class
+- [Google Sheets and Calendar access](vignettes/google-troubleshooting.Rmd) — service-account JSON quoting and sharing
+- [ABS portal login and downloads](vignettes/abs-troubleshooting.Rmd) — credentials, `Not authenticated`, connection quirks
+- [Local Docker build](vignettes/docker-troubleshooting.Rmd) — make targets, `docs/` clobber warning, image issues
+- [Daily CI build](vignettes/ci-troubleshooting.Rmd) — the two jobs, secrets, and the four failure modes
+
 ### Create an issue with a description of what you're doing
 
 In the Github [repo](https://github.com/moodlab/abmdash/issues) create a new issue with a description of what your code changes will do. If you're not sure where to start with the description you can look at previous issues.
