@@ -21,15 +21,7 @@ get_upcoming_followups <- function(days_ahead = 14) {
   logs <- get_redcap_logs(begin_time = begin_time)
   
   if (is.null(logs) || length(logs) == 0) {
-    return(data.frame(
-      record_id = character(0),
-      follow_up_type = character(0),
-      w4_completion_date = character(0),
-      due_date = character(0),
-      days_until_due = numeric(0),
-      status = character(0),
-      stringsAsFactors = FALSE
-    ))
+    return(empty_followup_frame())
   }
   
   # Convert to data frame if needed
@@ -49,15 +41,7 @@ get_upcoming_followups <- function(days_ahead = 14) {
   }
   
   if (nrow(logs_df) == 0) {
-    return(data.frame(
-      record_id = character(0),
-      follow_up_type = character(0),
-      w4_completion_date = character(0),
-      due_date = character(0),
-      days_until_due = numeric(0),
-      status = character(0),
-      stringsAsFactors = FALSE
-    ))
+    return(empty_followup_frame())
   }
   
   # Look for W4 Acute [IN-PERSON] completions
@@ -68,15 +52,7 @@ get_upcoming_followups <- function(days_ahead = 14) {
   
   
   if (nrow(w4_logs) == 0) {
-    return(data.frame(
-      record_id = character(0),
-      follow_up_type = character(0),
-      w4_completion_date = character(0),
-      due_date = character(0),
-      days_until_due = numeric(0),
-      status = character(0),
-      stringsAsFactors = FALSE
-    ))
+    return(empty_followup_frame())
   }
   
   # Parse timestamps and filter valid records
@@ -84,15 +60,7 @@ get_upcoming_followups <- function(days_ahead = 14) {
   w4_logs_with_records <- w4_logs[w4_logs$record != "" & !is.na(w4_logs$record), ]
   
   if (nrow(w4_logs_with_records) == 0) {
-    return(data.frame(
-      record_id = character(0),
-      follow_up_type = character(0),
-      w4_completion_date = character(0),
-      due_date = character(0),
-      days_until_due = numeric(0),
-      status = character(0),
-      stringsAsFactors = FALSE
-    ))
+    return(empty_followup_frame())
   }
   
   # Get most recent W4 completion per record
@@ -110,15 +78,7 @@ get_upcoming_followups <- function(days_ahead = 14) {
   recent_completions_list <- recent_completions_list[!sapply(recent_completions_list, is.null)]
   
   if (length(recent_completions_list) == 0) {
-    return(data.frame(
-      record_id = character(0),
-      follow_up_type = character(0),
-      w4_completion_date = character(0),
-      due_date = character(0),
-      days_until_due = numeric(0),
-      status = character(0),
-      stringsAsFactors = FALSE
-    ))
+    return(empty_followup_frame())
   }
   
   recent_completions <- do.call(rbind, recent_completions_list)
@@ -140,6 +100,11 @@ get_upcoming_followups <- function(days_ahead = 14) {
   w12_completed_records <- unique(w12_completed_logs$record[w12_completed_logs$record != ""])
   w16_completed_records <- unique(w16_completed_logs$record[w16_completed_logs$record != ""])
   w28_completed_records <- unique(w28_completed_logs$record[w28_completed_logs$record != ""])
+  completed_records <- list(
+    "Week 12" = w12_completed_records,
+    "Week 16" = w16_completed_records,
+    "Week 28" = w28_completed_records
+  )
   
   
   # Calculate follow-up dates and status
@@ -161,63 +126,15 @@ get_upcoming_followups <- function(days_ahead = 14) {
   all_followups <- list()
   
   # Check each participant for incomplete follow-ups
-  for (i in 1:nrow(recent_completions)) {
-    row <- recent_completions[i, ]
-    record_id <- row$record
-    
-    # Skip withdrawn participants entirely
-    if (record_id %in% withdrawn_records) {
-      next
-    }
-    
-    # Week 12 - only show if not completed and within timeframe
-    if (abs(row$days_to_week12) <= days_ahead && !record_id %in% w12_completed_records) {
-      all_followups[[length(all_followups) + 1]] <- data.frame(
-        record_id = record_id,
-        follow_up_type = "Week 12",
-        w4_completion_date = as.character(row$completion_date),
-        due_date = as.character(row$week12_due_date),
-        days_until_due = row$days_to_week12,
-        status = ifelse(row$days_to_week12 < 0, 
-                       paste("Overdue by", abs(row$days_to_week12), "days"),
-                       ifelse(row$days_to_week12 == 0, "Due Today",
-                             paste("Due in", row$days_to_week12, "days"))),
-        stringsAsFactors = FALSE
-      )
-    }
-    
-    # Week 16 - only show if not completed and within timeframe
-    if (abs(row$days_to_week16) <= days_ahead && !record_id %in% w16_completed_records) {
-      all_followups[[length(all_followups) + 1]] <- data.frame(
-        record_id = record_id,
-        follow_up_type = "Week 16",
-        w4_completion_date = as.character(row$completion_date),
-        due_date = as.character(row$week16_due_date),
-        days_until_due = row$days_to_week16,
-        status = ifelse(row$days_to_week16 < 0, 
-                       paste("Overdue by", abs(row$days_to_week16), "days"),
-                       ifelse(row$days_to_week16 == 0, "Due Today",
-                             paste("Due in", row$days_to_week16, "days"))),
-        stringsAsFactors = FALSE
-      )
-    }
-    
-    # Week 28 - only show if not completed and within timeframe
-    if (abs(row$days_to_week28) <= days_ahead && !record_id %in% w28_completed_records) {
-      all_followups[[length(all_followups) + 1]] <- data.frame(
-        record_id = record_id,
-        follow_up_type = "Week 28",
-        w4_completion_date = as.character(row$completion_date),
-        due_date = as.character(row$week28_due_date),
-        days_until_due = row$days_to_week28,
-        status = ifelse(row$days_to_week28 < 0, 
-                       paste("Overdue by", abs(row$days_to_week28), "days"),
-                       ifelse(row$days_to_week28 == 0, "Due Today",
-                             paste("Due in", row$days_to_week28, "days"))),
-        stringsAsFactors = FALSE
-      )
-    }
-  }
+  followup_rows <- lapply(
+    split(recent_completions, seq_len(nrow(recent_completions))),
+    build_followup_rows,
+    withdrawn_records = withdrawn_records,
+    completed_records = completed_records,
+    days_ahead = days_ahead
+  )
+  all_followups <- unlist(followup_rows, recursive = FALSE)
+  all_followups <- all_followups[!vapply(all_followups, is.null, logical(1))]
   
   # Combine all follow-ups
   if (length(all_followups) > 0) {
@@ -227,14 +144,64 @@ get_upcoming_followups <- function(days_ahead = 14) {
     rownames(result) <- NULL
     return(result)
   } else {
-    return(data.frame(
-      record_id = character(0),
-      follow_up_type = character(0),
-      w4_completion_date = character(0),
-      due_date = character(0),
-      days_until_due = numeric(0),
-      status = character(0),
-      stringsAsFactors = FALSE
-    ))
+    return(empty_followup_frame())
   }
+}
+
+# Internal helper: the locked empty follow-up frame. Columns and types are
+# pinned by test-week12-tracking.R: record_id/follow_up_type/w4_completion_date/
+# due_date/status character, days_until_due double.
+empty_followup_frame <- function() {
+  data.frame(
+    record_id = character(0),
+    follow_up_type = character(0),
+    w4_completion_date = character(0),
+    due_date = character(0),
+    days_until_due = numeric(0),
+    status = character(0),
+    stringsAsFactors = FALSE
+  )
+}
+
+# Internal helper: the 0-3 follow-up rows for one participant's most recent W4
+# completion. Withdrawn participants yield no rows; each follow-up type yields
+# a row only when it is not already completed and falls within the look-ahead
+# window. Status strings are locked verbatim by test-week12-tracking.R,
+# including the unpluralized "Due in 1 days".
+build_followup_rows <- function(completion, withdrawn_records, completed_records, days_ahead) {
+  record_id <- completion$record
+
+  # Skip withdrawn participants entirely
+  if (record_id %in% withdrawn_records) {
+    return(list())
+  }
+
+  build_one <- function(follow_up_type, due_date_col, days_until_col) {
+    days_until_due <- completion[[days_until_col]]
+
+    # Only show if not completed and within timeframe
+    if (abs(days_until_due) <= days_ahead &&
+        !record_id %in% completed_records[[follow_up_type]]) {
+      data.frame(
+        record_id = record_id,
+        follow_up_type = follow_up_type,
+        w4_completion_date = as.character(completion$completion_date),
+        due_date = as.character(completion[[due_date_col]]),
+        days_until_due = days_until_due,
+        status = ifelse(days_until_due < 0,
+                       paste("Overdue by", abs(days_until_due), "days"),
+                       ifelse(days_until_due == 0, "Due Today",
+                             paste("Due in", days_until_due, "days"))),
+        stringsAsFactors = FALSE
+      )
+    } else {
+      NULL
+    }
+  }
+
+  list(
+    build_one("Week 12", "week12_due_date", "days_to_week12"),
+    build_one("Week 16", "week16_due_date", "days_to_week16"),
+    build_one("Week 28", "week28_due_date", "days_to_week28")
+  )
 }
