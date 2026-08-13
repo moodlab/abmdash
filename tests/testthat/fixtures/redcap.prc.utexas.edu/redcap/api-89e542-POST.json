@@ -1,0 +1,32 @@
+[
+    {
+        "record_id": "P401",
+        "guid": "GUID-BBB222",
+        "interview_date": "2026-08-11"
+    },
+    {
+        "record_id": "P402",
+        "guid": "GUID-CCC333",
+        "interview_date": "2026-06-01"
+    },
+    {
+        "record_id": "P403",
+        "guid": "",
+        "interview_date": "2026-08-12"
+    },
+    {
+        "record_id": "P404",
+        "guid": "",
+        "interview_date": "2026-08-12"
+    },
+    {
+        "record_id": "P404",
+        "guid": "GUID-DDD444",
+        "interview_date": "2026-08-10"
+    },
+    {
+        "record_id": "P405",
+        "guid": "GUID-EEE555",
+        "interview_date": ""
+    }
+]
