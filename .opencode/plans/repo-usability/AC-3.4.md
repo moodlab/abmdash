@@ -2,7 +2,7 @@
 ac: 3.4
 depends_on: AC-3.1
 risk: medium
-status: spec
+status: complete
 ---
 
 # AC-3.4: Behavior-lock abs_login.R + 5 small modules (16 exports)
@@ -36,11 +36,18 @@ status: spec
 - risk: medium (date-pinning of base primitives + Livewire fixture realism).
 
 ### Progress
-- [ ] abs + small locked — pending
+- [x] abs + small locked — done (2026-08-13): 353 pass / 1 skip (live-login skipif), offline-green ×2 deterministic, fake-lock mutation verified.
 ### Decision Log
 - spec-resolved — corrected L461→L460 typo; both inst/extdata/ and data/ enrollment_targets.csv exist (system.file fallback chain).
+- locked-behavior — empty compliance report (get_participant_summary) and empty demographics report both ERROR in current code (do.call(rbind,list())→NULL then NULL[order(-NULL$...)]; $<- on 0-row frame). Tests lock the error instead of a vacuous empty pass; empty-case colnames+types locked where the code DOES return empty frames (compliance time-window, week12 empty frames, summarize_demographics).
 ### Surprises & Discoveries
-- (none yet)
+- AC-3.4 (abs/small lock): read.csv mangles sheet columns with spaces ("Referral ID"→"Referral.ID") unless check.names=FALSE — load_fixture passes it through for the gsheet fixture.
+- AC-3.4 (abs/small lock): captured$field <- inside a mock closure shadows the parent list binding with a local copy (value never escapes) — must use an environment (new.env) for mock-side capture in testthat closures.
+- AC-3.4 (abs/small lock): tempdir() is process-constant, so sibling tests in one file see each other's leftover dirs — encrypt_dashboard docs-dir tests need unique subdirs.
+- AC-3.4 (abs/small lock): code hardcodes plural "Due in 1 days" (paste("Due in", n, "days")) and round(50.0,1)→"50%" (no trailing zero) — locked as-is, not normalized.
+- AC-3.4 (abs/small lock): write.csv round-trip coerces 74.0→"74"→integer — save_path test compares by value (expect_equal), not expect_identical.
+- AC-3.4 (abs/small lock): aggregate() errors "no rows to aggregate" on empty input — the empty-compliance path for get_compliance_report must be exercised via the (0,5)-week window filter, not a zero-row fixture.
+- AC-3.4 (abs/small lock): httr2::req_url_path validates session is a real request — download/verify exports cannot be called with plain-string sessions in tests; payload values arrive as jsonlite::unbox scalars (match with unbox() on expected).
 ### Idempotence & Recovery
 - Safe retry: re-run builder steps; fixtures idempotent.
 - Rollback: git revert.
