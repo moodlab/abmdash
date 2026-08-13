@@ -93,3 +93,6 @@ status: complete
 ### Idempotence & Recovery
 - Safe retry: re-run okf-bundle skill generation; files idempotent.
 - Rollback: git revert of the docs/okf + .gitignore commit.
+
+### Carryover Log
+- Cycle 1 (PR #42): index.md link-convention mismatch [consider] + run_initial_function.md self-link text [nit] — resolved in a40deaa (fix(docs) commit, link validation re-passed). No fix-now items. Status: resolved.
