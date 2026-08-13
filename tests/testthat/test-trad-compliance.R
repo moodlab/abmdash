@@ -1,10 +1,12 @@
 # Integration tests for get_trad_compliance_summary()
 
 test_that("get_trad_compliance_summary returns expected columns with fixture data", {
-  fixture_data <- read.csv(
-    test_path("fixtures", "trad_csv_sample.csv"),
-    stringsAsFactors = FALSE
-  )
+  local_isolated_env()
+  # Fixture dates (2026-03) are older than active_window_weeks=5 against the
+  # real clock, so without a frozen clock this test would pass on an EMPTY
+  # result. Freeze the clock to make the assertion meaningful.
+  with_fixed_clock("2026-03-20 12:00:00", tz = "UTC")
+  fixture_data <- load_fixture("trad", "trad_csv_sample.csv")
 
   local_mocked_bindings(
     abs_login = function(...) "mock_session",
@@ -14,6 +16,7 @@ test_that("get_trad_compliance_summary returns expected columns with fixture dat
   result <- get_trad_compliance_summary()
 
   expect_s3_class(result, "data.frame")
+  expect_equal(nrow(result), 2)
   expected_cols <- c(
     "id", "current_week", "weeks_from_start",
     "total_sessions", "expected_sessions",
@@ -23,10 +26,9 @@ test_that("get_trad_compliance_summary returns expected columns with fixture dat
 })
 
 test_that("test IDs are excluded from results", {
-  fixture_data <- read.csv(
-    test_path("fixtures", "trad_csv_sample.csv"),
-    stringsAsFactors = FALSE
-  )
+  local_isolated_env()
+  with_fixed_clock("2026-03-20 12:00:00", tz = "UTC")
+  fixture_data <- load_fixture("trad", "trad_csv_sample.csv")
 
   local_mocked_bindings(
     abs_login = function(...) "mock_session",
@@ -39,20 +41,21 @@ test_that("test IDs are excluded from results", {
 })
 
 test_that("participants beyond active window are excluded", {
-  fixture_data <- read.csv(
-    test_path("fixtures", "trad_csv_sample.csv"),
-    stringsAsFactors = FALSE
-  )
+  local_isolated_env()
+  with_fixed_clock("2026-03-20 12:00:00", tz = "UTC")
+  fixture_data <- load_fixture("trad", "trad_csv_sample.csv")
 
   local_mocked_bindings(
     abs_login = function(...) "mock_session",
     download_abs_csv = function(...) fixture_data
   )
 
-  # P003 started 2025-01-01 — well beyond 5 weeks ago
+  # P003 started 2025-01-01 — well beyond 5 weeks before the frozen clock;
+  # P001/P002 must remain in the result (non-vacuous).
   result <- get_trad_compliance_summary()
 
   expect_false("P003" %in% result$id)
+  expect_true(all(c("P001", "P002") %in% result$id))
 })
 
 test_that("sessions_behind is correctly calculated", {
