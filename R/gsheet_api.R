@@ -41,37 +41,17 @@ read_google_sheet <- function(sheet_url, sheet_name = NULL, range = NULL) {
     stop("jsonlite package is required. Please install it with: install.packages('jsonlite')")
   }
 
-  # Extract spreadsheet ID from URL
-  sheet_id <- extract_sheet_id(sheet_url)
+  # Parse spreadsheet ID from URL
+  sheet_id <- parse_sheet_id_from_url(sheet_url)
 
   # Get access token
   access_token <- get_google_sheets_access_token()
 
   # Build the range parameter
-  range_param <- if (!is.null(sheet_name) && !is.null(range)) {
-    paste0(sheet_name, "!", range)
-  } else if (!is.null(sheet_name)) {
-    sheet_name
-  } else if (!is.null(range)) {
-    range
-  } else {
-    NULL
-  }
+  range_param <- build_range_param(sheet_name, range)
 
   # Build API URL
-  if (!is.null(range_param)) {
-    api_url <- sprintf(
-      "https://sheets.googleapis.com/v4/spreadsheets/%s/values/%s",
-      sheet_id,
-      utils::URLencode(range_param, reserved = TRUE)
-    )
-  } else {
-    # Get the first sheet if no range specified
-    api_url <- sprintf(
-      "https://sheets.googleapis.com/v4/spreadsheets/%s/values/Sheet1",
-      sheet_id
-    )
-  }
+  api_url <- build_sheet_api_url(sheet_id, range_param)
 
   # Make the API request
   tryCatch({
@@ -83,38 +63,7 @@ read_google_sheet <- function(sheet_url, sheet_name = NULL, range = NULL) {
     sheet_data <- httr2::resp_body_json(response)
 
     # Convert to data frame
-    if (!is.null(sheet_data$values) && length(sheet_data$values) > 0) {
-      # First row as column names
-      col_names <- unlist(sheet_data$values[[1]])
-
-      # Remaining rows as data
-      if (length(sheet_data$values) > 1) {
-        data_rows <- sheet_data$values[2:length(sheet_data$values)]
-
-        # Convert to data frame
-        # Pad shorter rows with NA
-        max_cols <- length(col_names)
-        data_rows <- lapply(data_rows, function(row) {
-          row_vec <- unlist(row)
-          if (length(row_vec) < max_cols) {
-            row_vec <- c(row_vec, rep(NA, max_cols - length(row_vec)))
-          }
-          row_vec
-        })
-
-        df <- as.data.frame(do.call(rbind, data_rows), stringsAsFactors = FALSE)
-        colnames(df) <- col_names
-        return(df)
-      } else {
-        # Only header row
-        df <- as.data.frame(matrix(ncol = length(col_names), nrow = 0))
-        colnames(df) <- col_names
-        return(df)
-      }
-    } else {
-      warning("No data found in the sheet")
-      return(data.frame())
-    }
+    parse_sheet_values(sheet_data)
 
   }, error = function(e) {
     stop("Google Sheets API call failed: ", e$message)
@@ -122,14 +71,110 @@ read_google_sheet <- function(sheet_url, sheet_name = NULL, range = NULL) {
 }
 
 
-#' Extract Sheet ID from URL
+#' Build the Range Parameter
+#'
+#' Internal function to combine the sheet name and A1 range into the API range
+#' parameter. Precedence mirrors the Sheets API: both -> "Sheet!Range", name
+#' only -> name, range only -> range, neither -> NULL.
+#'
+#' @param sheet_name Character scalar sheet/tab name, or NULL.
+#' @param range Character scalar A1 range, or NULL.
+#' @return Character scalar range parameter, or NULL.
+#' @keywords internal
+build_range_param <- function(sheet_name, range) {
+  if (!is.null(sheet_name) && !is.null(range)) {
+    paste0(sheet_name, "!", range)
+  } else if (!is.null(sheet_name)) {
+    sheet_name
+  } else if (!is.null(range)) {
+    range
+  } else {
+    NULL
+  }
+}
+
+
+#' Build the Sheets API URL
+#'
+#' Internal function to build the Google Sheets values API URL for a
+#' spreadsheet ID and range parameter. Without a range, defaults to the first
+#' sheet ("Sheet1").
+#'
+#' @param sheet_id Character scalar spreadsheet ID.
+#' @param range_param Character scalar range parameter, or NULL.
+#' @return Character scalar API URL.
+#' @keywords internal
+build_sheet_api_url <- function(sheet_id, range_param) {
+  if (!is.null(range_param)) {
+    sprintf(
+      "https://sheets.googleapis.com/v4/spreadsheets/%s/values/%s",
+      sheet_id,
+      utils::URLencode(range_param, reserved = TRUE)
+    )
+  } else {
+    # Get the first sheet if no range specified
+    sprintf(
+      "https://sheets.googleapis.com/v4/spreadsheets/%s/values/Sheet1",
+      sheet_id
+    )
+  }
+}
+
+
+#' Parse Sheets Values Payload
+#'
+#' Internal function to convert the parsed values payload of a Sheets API
+#' response into a data frame. The first row becomes column names; remaining
+#' rows become data, with shorter rows padded by NA. An empty payload warns and
+#' returns a zero-row frame.
+#'
+#' @param sheet_data Parsed JSON response body (list).
+#' @return Data frame of sheet cells, or empty frame if no values.
+#' @keywords internal
+parse_sheet_values <- function(sheet_data) {
+  if (!is.null(sheet_data$values) && length(sheet_data$values) > 0) {
+    # First row as column names
+    col_names <- unlist(sheet_data$values[[1]])
+
+    # Remaining rows as data
+    if (length(sheet_data$values) > 1) {
+      data_rows <- sheet_data$values[2:length(sheet_data$values)]
+
+      # Convert to data frame
+      # Pad shorter rows with NA
+      max_cols <- length(col_names)
+      data_rows <- lapply(data_rows, function(row) {
+        row_vec <- unlist(row)
+        if (length(row_vec) < max_cols) {
+          row_vec <- c(row_vec, rep(NA, max_cols - length(row_vec)))
+        }
+        row_vec
+      })
+
+      df <- as.data.frame(do.call(rbind, data_rows), stringsAsFactors = FALSE)
+      colnames(df) <- col_names
+      df
+    } else {
+      # Only header row
+      df <- as.data.frame(matrix(ncol = length(col_names), nrow = 0))
+      colnames(df) <- col_names
+      df
+    }
+  } else {
+    warning("No data found in the sheet")
+    data.frame()
+  }
+}
+
+
+#' Parse Sheet ID from URL
 #'
 #' Internal function to extract the spreadsheet ID from a Google Sheets URL.
 #'
 #' @param url Character string with the Google Sheets URL
 #' @return Character string containing the spreadsheet ID
 #' @keywords internal
-extract_sheet_id <- function(url) {
+parse_sheet_id_from_url <- function(url) {
   # Pattern: /d/{sheet_id}/
   # Note: hyphen must be at end of character class to avoid being interpreted as range
   pattern <- "/d/([a-zA-Z0-9_-]+)"
@@ -139,7 +184,7 @@ extract_sheet_id <- function(url) {
     stop("Could not extract spreadsheet ID from URL: ", url)
   }
 
-  return(match[[1]][2])
+  match[[1]][2]
 }
 
 
@@ -164,18 +209,49 @@ get_google_sheets_access_token <- function() {
   }
 
   # Parse the service account JSON
+  service_account <- parse_service_account_json(service_account_json)
+
+  # Sign and exchange JWT for the Sheets read-only scope
+  scope <- "https://www.googleapis.com/auth/spreadsheets.readonly"
+
+  sign_and_exchange_jwt(service_account, scope)
+}
+
+
+#' Parse Service Account JSON
+#'
+#' Internal function to parse the GOOGLE_SERVICE_ACCOUNT_JSON environment
+#' variable value into a service account list. Removes outer quotes and
+#' unescapes inner quotes (from .Renviron formatting) before parsing.
+#'
+#' @param service_account_json Character scalar raw value from the environment.
+#' @return List containing the parsed service account.
+#' @keywords internal
+parse_service_account_json <- function(service_account_json) {
   tryCatch({
     # Remove outer quotes and unescape inner quotes (from .Renviron formatting)
     clean_json <- gsub('^"|"$', '', service_account_json)
     clean_json <- gsub('\\\\"', '"', clean_json)
-    service_account <- jsonlite::fromJSON(clean_json)
+    jsonlite::fromJSON(clean_json)
   }, error = function(e) {
     stop("Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON: ", e$message)
   })
+}
+
+
+#' Sign and Exchange JWT
+#'
+#' Internal function to build the JWT claim for a service account, sign it with
+#' the private key, and exchange it for an access token at the OAuth2 token
+#' endpoint.
+#'
+#' @param service_account List containing parsed service account JSON.
+#' @param scope Character scalar OAuth2 scope to request.
+#' @return Character string containing the access token.
+#' @keywords internal
+sign_and_exchange_jwt <- function(service_account, scope) {
 
   # Create JWT payload for service account authentication
-  scope <- "https://www.googleapis.com/auth/spreadsheets.readonly"
-
   now <- as.numeric(Sys.time())
   claim <- jose::jwt_claim(
     iss = service_account$client_email,
@@ -218,7 +294,7 @@ get_google_sheets_access_token <- function() {
     stop("No access_token in response. Available fields: ", available_fields)
   }
 
-  return(token_data$access_token)
+  token_data$access_token
 }
 
 
