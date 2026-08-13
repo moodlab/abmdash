@@ -741,14 +741,7 @@ get_enrollment_stats <- function() {
       ))
     }
 
-    # Convert list to data frame
-    if (is.list(raw_data) && !is.data.frame(raw_data)) {
-      report_df <- do.call(rbind, lapply(raw_data, function(x) {
-        data.frame(x, stringsAsFactors = FALSE)
-      }))
-    } else {
-      report_df <- raw_data
-    }
+    report_df <- report_to_df(raw_data)
 
     if (is.null(report_df) || nrow(report_df) == 0) {
       return(list(
@@ -782,55 +775,8 @@ get_enrollment_stats <- function() {
       # Get enrolled record_ids
       enrolled_record_ids <- record_has_guid$record_id[record_has_guid$has_guid]
 
-      # For each enrolled record, get their interview_date (from any row)
-      enrolled_df <- report_df[report_df$record_id %in% enrolled_record_ids, ]
-
-      # Get one row per record_id with the earliest non-NA interview_date
-      if ("interview_date" %in% names(enrolled_df)) {
-        # First, get records with valid interview_dates
-        enrolled_with_dates <- enrolled_df[
-          !is.na(enrolled_df$interview_date) &
-          enrolled_df$interview_date != "" &
-          enrolled_df$interview_date != "NA",
-        ]
-
-        if (nrow(enrolled_with_dates) > 0) {
-          # Parse dates first
-          enrolled_with_dates$parsed_interview_date <- as.Date(enrolled_with_dates$interview_date)
-
-          # Get the earliest date for each record_id
-          earliest_dates <- aggregate(
-            parsed_interview_date ~ record_id,
-            data = enrolled_with_dates,
-            FUN = min,
-            na.rm = TRUE
-          )
-
-          # For records without interview_date, add them with NA date
-          records_without_dates <- setdiff(enrolled_record_ids, earliest_dates$record_id)
-          if (length(records_without_dates) > 0) {
-            missing_dates <- data.frame(
-              record_id = records_without_dates,
-              parsed_interview_date = as.Date(NA)
-            )
-            enrolled_df <- rbind(earliest_dates, missing_dates)
-          } else {
-            enrolled_df <- earliest_dates
-          }
-        } else {
-          # No valid dates found, create df with NAs
-          enrolled_df <- data.frame(
-            record_id = enrolled_record_ids,
-            parsed_interview_date = as.Date(NA)
-          )
-        }
-      } else {
-        # interview_date field doesn't exist
-        enrolled_df <- data.frame(
-          record_id = enrolled_record_ids,
-          parsed_interview_date = as.Date(NA)
-        )
-      }
+      # One row per enrolled record with the earliest parsed interview_date
+      enrolled_df <- group_enrolled(report_df, enrolled_record_ids)
 
       total_enrolled <- length(enrolled_record_ids)
     } else if (!is.null(guid_field)) {
@@ -952,4 +898,63 @@ detect_guid_field <- function(report_df) {
     return(fuzzy_match[1])
   }
   NULL
+}
+
+#' One Row per Enrolled Record with its Earliest Interview Date
+#'
+#' REDCap longitudinal data can repeat a record_id across rows. Keep the first
+#' (earliest) parsed interview_date per enrolled record; records with no valid
+#' date get NA so they still count as enrolled.
+#'
+#' @param report_df Data frame of report rows for enrolled record_ids
+#' @param enrolled_record_ids Character vector of record_ids with any GUID
+#'
+#' @return Data frame with columns record_id, parsed_interview_date
+#' @keywords internal
+group_enrolled <- function(report_df, enrolled_record_ids) {
+  enrolled_df <- report_df[report_df$record_id %in% enrolled_record_ids, ]
+
+  if (!"interview_date" %in% names(enrolled_df)) {
+    return(data.frame(
+      record_id = enrolled_record_ids,
+      parsed_interview_date = as.Date(NA)
+    ))
+  }
+
+  # First, get records with valid interview_dates
+  enrolled_with_dates <- enrolled_df[
+    !is.na(enrolled_df$interview_date) &
+    enrolled_df$interview_date != "" &
+    enrolled_df$interview_date != "NA",
+  ]
+
+  if (nrow(enrolled_with_dates) == 0) {
+    return(data.frame(
+      record_id = enrolled_record_ids,
+      parsed_interview_date = as.Date(NA)
+    ))
+  }
+
+  # Parse dates first
+  enrolled_with_dates$parsed_interview_date <- as.Date(enrolled_with_dates$interview_date)
+
+  # Get the earliest date for each record_id
+  earliest_dates <- aggregate(
+    parsed_interview_date ~ record_id,
+    data = enrolled_with_dates,
+    FUN = min,
+    na.rm = TRUE
+  )
+
+  # For records without interview_date, add them with NA date
+  records_without_dates <- setdiff(enrolled_record_ids, earliest_dates$record_id)
+  if (length(records_without_dates) > 0) {
+    missing_dates <- data.frame(
+      record_id = records_without_dates,
+      parsed_interview_date = as.Date(NA)
+    )
+    rbind(earliest_dates, missing_dates)
+  } else {
+    earliest_dates
+  }
 }
