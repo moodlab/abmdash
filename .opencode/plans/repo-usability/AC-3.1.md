@@ -2,7 +2,7 @@
 ac: 3.1
 depends_on: wave-2 complete
 risk: medium
-status: spec
+status: complete
 ---
 
 # AC-3.1: Deterministic test harness + trad_compliance pilot
@@ -10,7 +10,7 @@ status: spec
 ## Executable Spec
 - **predicate (9 conjuncts, ALL must hold):**
   1. DETERMINISM: two consecutive `make test` runs → `diff -r` of `_snaps/` + fixture outputs byte-identical; harness pins Sys.time() AND Sys.Date() (local_mocked_bindings(.package="base") both + TZ via withr::local_envvar) AND unsets API creds (local_isolated_env); pilot asserts EXACT value (e.g. weeks_from_start == 4.43) that fails if clock mock did not propagate.
-  2. NON-TAUTOLOGICAL LOCK: snapshot covers full 8-column output of process_trad_compliance_data; mutating sessions_per_week*4→*3 or round(...,2)→round(...,1) FAILS the lock.
+  2. NON-TAUTOLOGICAL LOCK: snapshot covers full 8-column output of process_trad_compliance_data; mutating sessions_per_week*4→*3 or round(...,2)→round(...,1) FAILS the lock. Behavior is locked, not code — mutations producing identical output do not trip the lock. The sessions_per_week*4→*3 mutation is observable only with cap-binding fixture data (max expected_sessions >= 12); round(...,2)→round(...,1) remains the proven tautology-catch trigger.
   3. PILOT SPECIFICS: frozen clock 2026-03-20 → nrow==2 (P001 ~2.7wk, P002 ~0.7wk active), P003 excluded (old). Existing test-trad-compliance.R passes VACUOUSLY (stale 2026-03-01 fixture dates vs real clock → all filtered by active_window_weeks=5 → empty result) — pilot must REPLACE vacuity.
   4. OFFLINE-GREEN: full suite green with all API creds unset (REDCAP_API_TOKEN, GOOGLE_SERVICE_ACCOUNT_JSON, ABS_USERNAME, ABS_PASSWORD, STATICRYPT_PASSWORD).
   5. CI EXERCISES LOCK: NEW .github/workflows/test.yml runs `make test` with NO API-cred secrets. (NO test job exists today — verified; build-dashboard.yml UNTOUCHED.)
@@ -39,11 +39,20 @@ status: spec
 - risk: medium (new CI workflow; renv.lock edits; base-package mocking version sensitivity — tripwire assert mitigates).
 
 ### Progress
-- [ ] harness built — pending
+- [x] harness built — helper-harness.R (load_fixture / with_fixed_clock / local_isolated_env / expect_snapshot_locked), pilot lock test-snapshot-lock.R, httptest2 dry-run, fixture namespacing, DESCRIPTION + renv.lock deps, RECORDING.md, CI test job — 2026-08-13
 ### Decision Log
 - spec-resolved — CI test job in-scope (lock worthless if CI never runs it); httptest2 dry-run in pilot (prove stack before 3.2).
+- pilot file named test-snapshot-lock.R (NOT test-harness-snapshot-lock-trad.R): testthat writes snapshots under _snaps/<test-file-stem>/, so this name makes the artifact land EXACTLY at AC-8's _snaps/snapshot-lock/trad.rds via native expect_snapshot_file. Future modules add test_that blocks to test-snapshot-lock.R (shared _snaps/snapshot-lock/ dir).
+- native expect_snapshot_file over custom waldo-helper: testthat 3e runs an end-of-run "_snaps cleanup" ("Deleting unused snapshots") that deletes ANY snapshot file it did not see used via announce/expect_snapshot machinery — a saveRDS-only lock file is deleted locally every run. expect_snapshot_file registers natively; CI-missing guard added because expect_snapshot_file only WARNs on new snapshots (would pass CI tautologically).
+- with_fixed_clock/local_isolated_env MUST pass .env / .local_envir = rlang::caller_env() (the test env): local_mocked_bindings and withr::local_* defer restoration to the passed frame, so a helper that defaults them to its OWN frame reverts the mock when the helper returns (first implementation silently unmocked → empty result).
+- RECORDING.md placed at repo ROOT (not tests/testthat/): the executable-spec probe is `test -f RECORDING.md` run from the repo root.
+- expected values are 2.73/0.73 wk (NOT issue-draft 4.43): computed from frozen clock 2026-03-20 12:00 vs fixture first-session dates; 4.43 was a stale draft number. Tripwire property holds: real clock (2026-08) → ~23.6 wk → all asserts fail loudly.
 ### Surprises & Discoveries
-- (none yet)
+- testthat 3e deletes unregistered files under _snaps at the end of every local run ("Deleting unused snapshots") — a custom saveRDS lock is silently removed, breaking determinism across consecutive runs. Native expect_snapshot_file (announce-tracking) is the only supported path.
+- local_mocked_bindings()/withr::local_* defer restoration to the frame you pass them; a helper wrapper must forward rlang::caller_env() or the mock lives only for the duration of the helper call. Direct-in-test mocking worked, helper-indirected mocking silently reverted — took a bisect (top-level vs test_that vs helper) to isolate.
+- waldo::compare() returns a zero-length character(0) (class waldo_compare), not NULL, when objects match — expect_null() fails on it. (Moot after switching to expect_snapshot_file, but recorded.)
+- AC-2's sessions_per_week*4→*3 mutation is UNOBSERVABLE with the nrow==2 fixture: max expected_sessions is 11 < the 12 cap, so the cap change produces identical output and the lock correctly stays green. round(...,2)→round(...,1) IS observable and fails the lock (proven). Precision feature, not a gap.
+- renv::snapshot(packages=...) generates the full closure but REMOVES lock entries not in that closure (quarto/rmarkdown/tinytable dropped!) — merged surgically instead: only the 13 new package blocks (brio/callr/crayon/desc/diffobj/httptest2/otel/pkgbuild/pkgload/praise/rprojroot/testthat/waldo) inserted into the untouched original lock; fs already present.
 ### Idempotence & Recovery
 - Safe retry: re-run builder steps; harness additive.
 - Rollback: git revert.
