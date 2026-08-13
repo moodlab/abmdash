@@ -8,14 +8,16 @@ description: >-
   sources (REDCap, Google Sheets, Google Calendar, ABS portal), local run via
   the Makefile, and the behavior-lock test suite as executable specs. Use when
   someone asks to learn abmdash, understand how this repo works, what modules
-  exist, or how the dashboard architecture is put together.
+  exist, or how the dashboard architecture is put together. Also for
+  troubleshooting: debug, diagnose, probe, or investigate errors, broken
+  tests, failing CI, or reported symptoms — see the Debug workflows section.
 ---
 
 # abmdash — Learn the Repo
 
 A single-file orientation for anyone (agent or human) new to this repository.
 Read top to bottom once; then use the module map as a lookup table. For
-troubleshooting (not covered here) see the [troubleshooting vignettes](vignettes/).
+troubleshooting (not covered here) see the [troubleshooting vignettes](vignettes/faq.Rmd).
 
 ## 1. Repo Purpose
 
@@ -162,7 +164,7 @@ Entry points:
   empty-result and error branches, with no-token guards on every mock file.
 - [tests/testthat/test-snapshot-lock.R](tests/testthat/test-snapshot-lock.R) —
   snapshot-locking harness (`expect_snapshot_locked()`), pinned RDS files under
-  [tests/testthat/_snaps/snapshot-lock/](tests/testthat/_snaps/snapshot-lock/).
+  `tests/testthat/_snaps/snapshot-lock/`.
 - [tests/testthat/helper-harness.R](tests/testthat/helper-harness.R) —
   fixture loading (`load_fixture()`) and isolated-env helpers used by all tests.
 
@@ -202,7 +204,8 @@ automatically every time the site is rebuilt.
 **Where does the data come from?** Four places, all read automatically (nobody
 types numbers in by hand):
 
-- **REDCap** — the study's main database of participants and their progress.
+- **REDCap** (Research Electronic Data Capture — the study's main participant
+  database) — records participants and their progress.
 - **Google Sheets** — where weekly gameplay session data is logged.
 - **Google Calendar** — study events.
 - **The ABS portal** — an administrative website that records traditional ABM
@@ -226,3 +229,86 @@ that gets committed to the repository. The project has automated checks
 ([RECORDING.md](RECORDING.md)) that refuse to merge anything containing a
 token-shaped string — keep credentials in `.Renviron`, which is never
 committed.
+
+## 9. Debug Workflows
+
+Symptom → probe → likely-file diagnostics for the most common failures in
+this repo. **Every probe here is offline**: it is an `Rscript
+-e 'devtools::test(filter="...")'` run, a `make test-trad`, an `rg` over
+source, or a file existence check. Nothing below talks to a live API,
+needs credentials, or needs the network.
+
+### Probing rules — read this first
+
+- **Never run `make test filter=X`.** The Makefile `test` target is a bare
+  `devtools::test()` — it never reads `filter`, so `make test filter=X`
+  silently runs the **full suite**. Use
+  `Rscript -e 'devtools::test(filter="<name>")'` instead. `make test-trad`
+  is the **only** filtered make target (it wraps
+  `devtools::test(filter = "trad-compliance")`).
+- **Filters are substrings of test-file names — use full strings.**
+  `filter="compliance"` matches **three** files (`test-compliance-summary.R`,
+  `test-compliance-tracking.R`, `test-trad-compliance.R`) — over-match. Use
+  `filter="compliance-summary"` to pin one module.
+- **Every filter below matches a real `tests/testthat/` file** — if a filter
+  runs zero tests, the name is wrong, not the environment.
+
+Behavior-lock suites are executable docs:
+`Rscript -e 'devtools::test(filter="<name>")'`. Green = behavior LOCKED —
+bug is upstream (credentials, data shape, environment). Red = behavior
+CHANGED in code. Never use `make test filter=X` — Makefile test ignores
+filter, silently runs the full suite; `make test-trad` is the only filtered
+make target. Filters are substrings of test-file names — use full strings.
+
+> **⚠ Requires credentials AND network — do NOT use as probes.** `make
+> docker-test-auth` (needs `.Renviron` with `ABS_USERNAME`/`ABS_PASSWORD`,
+> plus network to the ABS portal) and `make docker-render` (needs all
+> credentials plus network for `renv::restore()` and quarto) verify real
+> integrations. `make docker-build` needs network (pulls base images) but no
+> credentials. These three are *verification* targets, never *diagnostic*
+> probes — if you need to debug, run the offline probes in the table below
+> first.
+
+### Symptom → probe → likely file
+
+| Symptom (verbatim error fragment) | Probe (offline) | Likely file |
+|---|---|---|
+| `row names contain missing values` | `Rscript -e 'devtools::test(filter="redcap-behavior-lock")'` | [R/redcap_api.R](R/redcap_api.R):471 (`get_eligible_participants`), :615 (`eligibility_mask`), :657 (`get_weekly_screening_stats`) |
+| `Failed to parse private key PEM` (openssl runtime string — NOT a `stop()` in source, so `rg` returns zero) | `Rscript -e 'devtools::test(filter="google-token-signing")'` | [R/gsheet_api.R](R/gsheet_api.R):267, [R/gcal_api.R](R/gcal_api.R):160 (`openssl::read_key`) |
+| `GOOGLE_SERVICE_ACCOUNT_JSON environment variable is not set or is empty` | `Rscript -e 'devtools::test(filter="gsheet-api")'` | [R/gsheet_api.R](R/gsheet_api.R):208 |
+| GCal event errors (token, parse, event shape) | `Rscript -e 'devtools::test(filter="gcal-api")'` | [R/gcal_api.R](R/gcal_api.R) |
+| REDCap fetch/parse errors | `Rscript -e 'devtools::test(filter="redcap-behavior-lock")'` | [R/redcap_api.R](R/redcap_api.R) |
+| Eligibility regressions | `Rscript -e 'devtools::test(filter="eligible-participants")'` | [R/redcap_api.R](R/redcap_api.R):471 |
+| Snapshot drift (pinned RDS changed) | `Rscript -e 'devtools::test(filter="snapshot-lock")'` | `tests/testthat/_snaps/snapshot-lock/` |
+| FAQ-quoted error string suspect | `Rscript -e 'devtools::test(filter="faq-verbatim")'` | [tests/testthat/test-faq-verbatim.R](tests/testthat/test-faq-verbatim.R) |
+| Trad-compliance regression | `make test-trad` | [R/trad_compliance.R](R/trad_compliance.R) |
+| ABS offline (login/download behavior) | `Rscript -e 'devtools::test(filter="abs-login")'` — green **with 1 skip** is the expected offline result | [tests/testthat/test-abs-login.R](tests/testthat/test-abs-login.R):519 (`skip_if_not`) |
+| CI `build-image` job red | inspect [Dockerfile](Dockerfile) + [renv.lock](renv.lock) — renv/base-image/network (CI cache is GHA's, not local `/tmp/docker-cache`) | [Dockerfile](Dockerfile), [renv.lock](renv.lock) |
+| CI `build-dashboard` job red | inspect secrets/render/rebase — [build-dashboard.sh](build-dashboard.sh) + [.github/workflows/build-dashboard.yml](.github/workflows/build-dashboard.yml) | [build-dashboard.sh](build-dashboard.sh), workflow |
+| `renv::restore()` fails/hangs | `rg "renv" Dockerfile renv.lock` | [Dockerfile](Dockerfile), [renv.lock](renv.lock) |
+| staticrypt error/absent password | `rg "staticrypt" build-dashboard.sh .github/workflows/build-dashboard.yml` | [build-dashboard.sh](build-dashboard.sh), workflow |
+| Fixture-scan violation (token-shaped string in fixtures) | `Rscript -e 'devtools::test(filter="fixture-scan-google")'` | [tests/testthat/test-fixture-scan-google.R](tests/testthat/test-fixture-scan-google.R) |
+| Calendar event order wrong | `Rscript -e 'devtools::test(filter="combined-calendar")'` | [R/gcal_api.R](R/gcal_api.R) |
+| Missing R package (`httr2`/`jsonlite`/`jose` — `... package is required`) | `rg "package is required" R/` | [R/gsheet_api.R](R/gsheet_api.R):37/41/202, [R/gcal_api.R](R/gcal_api.R):32/36/121/208/212, [R/abs_login.R](R/abs_login.R):24, [R/redcap_api.R](R/redcap_api.R):40 |
+| `Could not find enrollment_targets.csv file` | `rg "enrollment_targets" R/run_initial_function.R` | [R/run_initial_function.R](R/run_initial_function.R):90-104, [inst/extdata/enrollment_targets.csv](inst/extdata/enrollment_targets.csv) |
+
+### CI job distinction
+
+The two CI jobs fail for **different** reasons — do not conflate them:
+
+- **`build-image`** (first job): builds the Docker image. Reds come from
+  `renv::restore()` (lockfile drift, missing package, network), the base
+  image, or Docker layer cache. CI uses **GitHub Actions cache**, not the
+  local `/tmp/docker-cache` that `make docker-build` uses.
+- **`build-dashboard`** (needs `build-image`): render + encrypt + commit.
+  Reds come from secrets (missing/wrong env vars), the render step, or the
+  `git pull --rebase` in [build-dashboard.sh](build-dashboard.sh).
+
+### abs-login offline skip disclosure
+
+`tests/testthat/test-abs-login.R:519` has
+`skip_if_not(Sys.getenv("ABS_USERNAME") != "" && Sys.getenv("ABS_PASSWORD") != "")`.
+Offline (no `.Renviron` credentials) **"green with 1 skip" is the expected
+result** — it is NOT a failure and NOT "all pass". The skip is the single
+live-login test (line 519); the other 37 tests in the file still run and
+pin the recorded-fixture behavior.
