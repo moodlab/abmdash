@@ -1,0 +1,48 @@
+✔ | F W  S  OK | Context
+
+⠏ |          0 | eligible-participants                                          
+⠇ | 3        6 | eligible-participants                                          
+✖ | 3       16 | eligible-participants
+────────────────────────────────────────────────────────────────────────────────
+Failure ('test-eligible-participants.R:79:3'): get_eligible_participants excludes records with empty/unparseable phq8score
+"first_name" %in% names(result) is not TRUE
+
+`actual`:   FALSE
+`expected`: TRUE 
+
+Failure ('test-eligible-participants.R:81:3'): get_eligible_participants excludes records with empty/unparseable phq8score
+result$first_name (`actual`) not equal to "Alice" (`expected`).
+
+`actual` is NULL
+`expected` is a character vector ('Alice')
+
+Failure ('test-eligible-participants.R:82:3'): get_eligible_participants excludes records with empty/unparseable phq8score
+result$phone_number (`actual`) not equal to "5120000000" (`expected`).
+
+`actual` is NULL
+`expected` is a character vector ('5120000000')
+────────────────────────────────────────────────────────────────────────────────
+
+══ Results ═════════════════════════════════════════════════════════════════════
+── Failed tests ────────────────────────────────────────────────────────────────
+Failure ('test-eligible-participants.R:79:3'): get_eligible_participants excludes records with empty/unparseable phq8score
+"first_name" %in% names(result) is not TRUE
+
+`actual`:   FALSE
+`expected`: TRUE 
+
+Failure ('test-eligible-participants.R:81:3'): get_eligible_participants excludes records with empty/unparseable phq8score
+result$first_name (`actual`) not equal to "Alice" (`expected`).
+
+`actual` is NULL
+`expected` is a character vector ('Alice')
+
+Failure ('test-eligible-participants.R:82:3'): get_eligible_participants excludes records with empty/unparseable phq8score
+result$phone_number (`actual`) not equal to "5120000000" (`expected`).
+
+`actual` is NULL
+`expected` is a character vector ('5120000000')
+
+[ FAIL 3 | WARN 0 | SKIP 0 | PASS 16 ]
+Error: Test failures
+Execution halted
