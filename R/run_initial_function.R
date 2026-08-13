@@ -111,9 +111,10 @@ get_enrollment_targets <- function() {
 }
 
 # Internal helper: the first path in `paths` that exists, or NA if none do.
-# Uses base file.exists (NOT fs::file_exists) so the base mock in
-# test-run-initial-function.R (L97 lock) continues to trip every candidate
-# and the verbatim stop string fires.
+# Uses base file.exists (NOT fs::file_exists) so the mock in
+# test-run-initial-function.R keeps the verbatim stop firing. Called once on the
+# whole vector; the "" that system.file() returns when extdata is absent is
+# skipped because file.exists("") is FALSE (the old `path != ""` guard).
 resolve_first_existing <- function(paths) {
   paths[file.exists(paths)][1]
 }
