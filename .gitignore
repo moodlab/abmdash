@@ -2,3 +2,8 @@
 .Renviron
 docs/
 planning.md
+# opencode pipeline transient artifacts
+.opencode/plans/**/AC-*-speculator-*.md
+.opencode/plans/**/status.md
+.opencode/ci-status/
+.opencode/traces/
