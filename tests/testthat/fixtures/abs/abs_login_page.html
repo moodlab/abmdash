@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en" data-csrf="data-csrf-token-abc123">
+<head>
+  <meta charset="utf-8">
+  <title>ABS Admin | Login</title>
+</head>
+<body>
+  <main class="login-container">
+    <form method="POST" action="/admin/login">
+      <input type="email" name="email" placeholder="Email">
+      <input type="password" name="password" placeholder="Password">
+      <button type="submit">Sign in</button>
+    </form>
+    <div wire:snapshot="{&quot;data&quot;:{&quot;email&quot;:&quot;&quot;,&quot;password&quot;:&quot;&quot;},&quot;memo&quot;:{&quot;name&quot;:&quot;login&quot;,&quot;id&quot;:&quot;LW-login-1&quot;},&quot;checksum&quot;:&quot;cs-1&quot;}" wire:effects="[]"></div>
+  </main>
+</body>
+</html>

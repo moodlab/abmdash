@@ -1,0 +1,13 @@
+record_id,redcap_event_name,raceid___1,raceid___2,raceid___3,raceid___4,raceid___5,raceid___6,raceid___7,demo_ethnicity,gender_identity,interview_age
+P001,eligibility_screen_arm_1,0,0,0,0,1,0,0,,1,2016-03-20
+P001,week_0_eligibility_arm_1,0,0,0,0,1,0,0,1,1,2016-03-20
+P002,eligibility_screen_arm_1,0,0,1,0,0,0,0,,2,2006-03-20
+P002,week_0_eligibility_arm_1,0,0,1,0,0,0,0,2,2,2006-03-20
+P003,eligibility_screen_arm_1,1,0,0,0,0,0,0,,1,1996-03-20
+P003,week_0_eligibility_arm_1,1,0,0,0,0,0,0,1,1,1996-03-20
+P004,eligibility_screen_arm_1,0,1,0,0,0,0,0,,2,1986-03-20
+P004,week_0_eligibility_arm_1,0,1,0,0,0,0,0,2,2,1986-03-20
+P005,eligibility_screen_arm_1,0,0,0,1,0,0,0,,1,1976-03-20
+P005,week_0_eligibility_arm_1,0,0,0,1,0,0,0,1,1,1976-03-20
+P006,eligibility_screen_arm_1,0,0,0,0,0,1,0,,2,1966-03-20
+P006,week_0_eligibility_arm_1,0,0,0,0,0,1,0,2,2,1966-03-20
