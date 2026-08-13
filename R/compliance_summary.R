@@ -38,40 +38,12 @@ get_participant_summary <- function(sheet_url,
   # Get unique participants
   unique_ids <- unique(compliance$id)
 
-  summary_list <- list()
-
-  for (i in seq_along(unique_ids)) {
-    participant_id <- unique_ids[i]
-    participant_data <- compliance[compliance$id == participant_id, ]
-
-    # Get the most recent week's data
-    latest_week <- participant_data[which.max(participant_data$time_from_start), ]
-
-    # Calculate totals across all weeks
-    total_completed <- sum(participant_data$sess_cnt, na.rm = TRUE)
-    weeks_from_start <- latest_week$time_from_start
-    expected_total <- round(weeks_from_start * sessions_per_week, 2)
-
-    # Cap expected sessions at 16 (4 weeks * 4 sessions/week)
-    expected_total <- min(expected_total, 16)
-
-    behind <- expected_total - total_completed
-
-    # Determine current week (1-4)
-    current_week <- min(ceiling(weeks_from_start), 4)
-
-    summary_list[[i]] <- data.frame(
-      id = participant_id,
-      current_week = current_week,
-      weeks_from_start = round(weeks_from_start, 2),
-      total_sessions_completed = total_completed,
-      expected_sessions = expected_total,
-      sessions_behind = round(behind, 2),
-      start_date = format(latest_week$start - ((current_week - 1) * 7 * 24 * 60 * 60), "%Y-%m-%d"),
-      stringsAsFactors = FALSE
-    )
-  }
-
+  summary_list <- lapply(
+    unique_ids,
+    compute_participant_summary,
+    compliance = compliance,
+    sessions_per_week = sessions_per_week
+  )
   summary <- do.call(rbind, summary_list)
 
   # Sort by sessions behind (most behind first)
@@ -85,6 +57,42 @@ get_participant_summary <- function(sheet_url,
   message("  - Participants on/ahead of schedule: ", sum(summary$sessions_behind <= 0))
 
   return(summary)
+}
+
+# Internal helper: compute one participant's summary row from their compliance
+# rows. The most recent week's time_from_start drives current_week and the
+# expected-session math; expected sessions are capped at 16 (4 weeks * 4
+# sessions/week). Row frame shape matches the exported contract (see
+# get_participant_summary() roxygen @return).
+compute_participant_summary <- function(participant_id, compliance, sessions_per_week) {
+  participant_data <- compliance[compliance$id == participant_id, ]
+
+  # Get the most recent week's data
+  latest_week <- participant_data[which.max(participant_data$time_from_start), ]
+
+  # Calculate totals across all weeks
+  total_completed <- sum(participant_data$sess_cnt, na.rm = TRUE)
+  weeks_from_start <- latest_week$time_from_start
+  expected_total <- round(weeks_from_start * sessions_per_week, 2)
+
+  # Cap expected sessions at 16 (4 weeks * 4 sessions/week)
+  expected_total <- min(expected_total, 16)
+
+  behind <- expected_total - total_completed
+
+  # Determine current week (1-4)
+  current_week <- min(ceiling(weeks_from_start), 4)
+
+  data.frame(
+    id = participant_id,
+    current_week = current_week,
+    weeks_from_start = round(weeks_from_start, 2),
+    total_sessions_completed = total_completed,
+    expected_sessions = expected_total,
+    sessions_behind = round(behind, 2),
+    start_date = format(latest_week$start - ((current_week - 1) * 7 * 24 * 60 * 60), "%Y-%m-%d"),
+    stringsAsFactors = FALSE
+  )
 }
 
 

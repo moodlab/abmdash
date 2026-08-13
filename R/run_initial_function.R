@@ -31,22 +31,35 @@ encrypt_dashboard <- function() {
   }
 
   # Determine the correct docs path - use absolute path for Docker
-  docs_path <- "/app/docs"
-  if (!file.exists(docs_path)) {
-    # Fallback to relative paths if not in Docker
-    if (file.exists("../../docs")) {
-      docs_path <- "../../docs"
-    } else if (file.exists("docs")) {
-      docs_path <- "docs"
-    } else {
-      cat("Could not find docs directory, skipping encryption\n")
-      return(invisible(NULL))
-    }
+  docs_path <- resolve_docs_path()
+  if (is.na(docs_path)) {
+    cat("Could not find docs directory, skipping encryption\n")
+    return(invisible(NULL))
   }
 
   cat("Encrypting files in:", docs_path, "\n")
 
   return(invisible(NULL))
+}
+
+# Internal helper: resolve the docs directory, preferring the absolute Docker
+# path (/app/docs), then the relative fallbacks. Returns NA when no docs
+# directory exists anywhere (caller handles the skip message).
+resolve_docs_path <- function() {
+  # Use absolute path for Docker
+  if (file.exists("/app/docs")) {
+    return("/app/docs")
+  }
+
+  # Fallback to relative paths if not in Docker
+  if (file.exists("../../docs")) {
+    return("../../docs")
+  }
+  if (file.exists("docs")) {
+    return("docs")
+  }
+
+  NA_character_
 }
 
 #' Get current time in Central Time Zone
@@ -85,15 +98,9 @@ get_enrollment_targets <- function() {
     "../../inst/extdata/enrollment_targets.csv"
   )
 
-  csv_path <- NULL
-  for (path in possible_paths) {
-    if (file.exists(path) && path != "") {
-      csv_path <- path
-      break
-    }
-  }
+  csv_path <- resolve_first_existing(possible_paths)
 
-  if (is.null(csv_path)) {
+  if (is.na(csv_path)) {
     stop("Could not find enrollment_targets.csv file")
   }
 
@@ -101,4 +108,13 @@ get_enrollment_targets <- function() {
   enrollment_data <- read.csv(csv_path, stringsAsFactors = FALSE)
 
   return(enrollment_data)
+}
+
+# Internal helper: the first path in `paths` that exists, or NA if none do.
+# Uses base file.exists (NOT fs::file_exists) so the mock in
+# test-run-initial-function.R keeps the verbatim stop firing. Called once on the
+# whole vector; the "" that system.file() returns when extdata is absent is
+# skipped because file.exists("") is FALSE (the old `path != ""` guard).
+resolve_first_existing <- function(paths) {
+  paths[file.exists(paths)][1]
 }

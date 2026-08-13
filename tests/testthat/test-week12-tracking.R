@@ -171,3 +171,17 @@ test_that("get_upcoming_followups returns locked empty frame when no W4 matches"
                          "due_date", "days_until_due", "status"))
   expect_type(result$days_until_due, "double")
 })
+
+test_that("get_upcoming_followups returns locked empty frame when every window is out of range", {
+  local_isolated_env()
+  with_fixed_clock("2026-03-20 12:00:00", tz = "UTC")
+  logs <- data.frame(timestamp = "2026-02-09 10:00", username = "u1",
+    action = "Completed W4 Acute [IN-PERSON]", details = "", record = "P020",
+    stringsAsFactors = FALSE)                    # W12 due in 17d > days_ahead 14
+  local_mocked_bindings(get_redcap_logs = function(begin_time = NULL, ...) logs)
+  result <- get_upcoming_followups()
+  expect_equal(nrow(result), 0)
+  expect_named(result, c("record_id", "follow_up_type", "w4_completion_date",
+                         "due_date", "days_until_due", "status"))
+  expect_type(result$days_until_due, "double")
+})

@@ -2,7 +2,7 @@
 ac: 3.8
 depends_on: AC-3.4
 risk: medium
-status: spec
+status: complete
 ---
 
 # AC-3.8: Refactor 5 small modules (ZERO behavior change)
@@ -50,11 +50,13 @@ status: spec
 - risk: medium.
 
 ### Progress
-- [ ] refactor — pending
+- [x] refactor — complete 2026-08-13 (5 commits: 8f756df compliance_summary, 4e147b5 compliance_tracking, bdc1ae4 demographics, a901eb8 week12_tracking, 7640e03 run_initial_function; each passed make test; all probes green)
 ### Decision Log
 - spec-resolved — encrypt_dashboard strictly refactor (no signature change); cap-at-16 logged as lock gap (non-blocking).
 ### Surprises & Discoveries
-- (none yet)
+- unlist(list-of-lists, recursive = FALSE) does NOT drop NULL elements nested inside inner lists (only empty inner lists vanish) — explicit NULL-filter needed after flattening in build_followup_rows wiring (verified in R before committing).
+- rg/grep -c exits 1 on zero matches, breaking && chains — check per-file separately or use `;`.
+- Rscript -e run without an explicit workdir executes in the session default cwd — a relative-path write silently hit the primary checkout (abmdash) instead of the worktree. Always pass workdir or absolute paths.
 ### Idempotence & Recovery
 - Safe retry: per-commit lock-green.
 - Rollback: git revert; lock suite catches drift.

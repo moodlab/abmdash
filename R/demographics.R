@@ -49,9 +49,7 @@ get_demographic_summary <- function(report_id = "13349", enrolled_ids = NULL) {
   age_data <- demo_raw[demo_raw$redcap_event_name == "eligibility_screen_arm_1", ]
   age_data$age <- NA
   if ("interview_age" %in% names(age_data)) {
-    birthdays <- as.Date(age_data$interview_age)
-    today <- Sys.Date()
-    age_data$age <- floor(as.numeric(difftime(today, birthdays, units = "days")) / 365.25)
+    age_data$age <- compute_age(age_data$interview_age)
   }
 
   # Merge demographics
@@ -76,6 +74,14 @@ get_demographic_summary <- function(report_id = "13349", enrolled_ids = NULL) {
   demo_merged$age <- age_data$age[age_match]
 
   return(demo_merged)
+}
+
+# Internal helper: whole years between `today` and each interview date, using
+# the 365.25-day year (floor, same math as before extraction). Exact ages are
+# pinned by the frozen-clock tripwire in test-demographics.R.
+compute_age <- function(interview_age, today = Sys.Date()) {
+  birthdays <- as.Date(interview_age)
+  floor(as.numeric(difftime(today, birthdays, units = "days")) / 365.25)
 }
 
 
