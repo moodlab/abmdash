@@ -95,6 +95,7 @@ get_calendar_events <- function(calendar_id = "primary", time_min = NULL, time_m
 #' @param service_account_json Character scalar raw value from the environment.
 #' @return List containing the parsed service account.
 #' @keywords internal
+#' @noRd
 parse_service_account_json <- function(service_account_json) {
   tryCatch({
     # Remove outer quotes and unescape inner quotes (from .Renviron formatting)
@@ -140,6 +141,7 @@ get_google_access_token <- function(service_account) {
 #' @param scope Character scalar OAuth2 scope to request.
 #' @return Character string containing the access token.
 #' @keywords internal
+#' @noRd
 sign_and_exchange_jwt <- function(service_account, scope) {
   
   # Create JWT payload for service account authentication
