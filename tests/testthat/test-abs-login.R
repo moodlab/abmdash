@@ -155,6 +155,35 @@ test_that("abs_login returns an authenticated request after Livewire redirect", 
                jsonlite::unbox("s3cret-pass"))
 })
 
+test_that("abs_login strips whitespace and quotes from credentials (L86-89)", {
+  # Secrets managers may wrap values in whitespace/quotes — the trimws +
+  # quote-strip chain must produce the CLEAN unboxed strings in the Livewire
+  # payload. Deleting the strip chain (previously silent — every other test
+  # set clean creds) fails this via the payload value asserts.
+  local_isolated_env()
+  withr::local_envvar(
+    ABS_USERNAME = ' "user@example.com" ',
+    ABS_PASSWORD = "  's3cret-pass'\t"
+  )
+
+  mock <- req_capture(
+    http_resp(200, read_fixture_text("abs_login_page.html"),
+              headers = list(`content-type` = "text/html; charset=utf-8")),
+    http_resp(200, read_fixture_text("abs_livewire_auth.json"),
+              headers = list(`content-type` = "application/json"))
+  )
+  local_mocked_bindings(req_perform = mock, .package = "httr2")
+
+  session <- suppressMessages(abs_login(check_connection = FALSE))
+  expect_s3_class(session, "httr2_request")
+
+  body <- attr(mock, "state")$reqs[[2]]$body$data
+  expect_equal(body$components[[1]]$updates$`data.email`,
+               jsonlite::unbox("user@example.com"))
+  expect_equal(body$components[[1]]$updates$`data.password`,
+               jsonlite::unbox("s3cret-pass"))
+})
+
 test_that("abs_login stops when httr2 is not installed (L23)", {
   local_isolated_env()
   local_mocked_bindings(
