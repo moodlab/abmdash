@@ -400,22 +400,17 @@ check_recent_responses <- function(sheet_url,
     timestamps <- data[[timestamp_col]]
   }
 
-  # Parse timestamps - try multiple formats
-  parsed_timestamps <- tryCatch({
-    # Try standard formats
-    as.POSIXct(timestamps, format = "%m/%d/%Y %H:%M:%S", tz = "UTC")
-  }, error = function(e) {
-    tryCatch({
-      as.POSIXct(timestamps, format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
-    }, error = function(e2) {
-      tryCatch({
-        as.POSIXct(timestamps, tz = "UTC")
-      }, error = function(e3) {
-        stop("Could not parse timestamps. First timestamp value: ", timestamps[1],
-             "\nPlease specify the correct timestamp column.")
-      })
-    })
-  })
+  # Parse timestamps. The nested tryCatch fallback chain was dead code: the
+  # first branch as.POSIXct(timestamps, format = "%m/%d/%Y %H:%M:%S", tz = "UTC")
+  # NEVER errors on character input. Verified empirically (R 4.5.1): a format
+  # mismatch yields NA with no error and no warning — only list input raises
+  # "do not know how to convert", which is impossible here because data[[col]]
+  # is character (read_google_sheet returns all-character columns). The fallback
+  # branches were therefore unreachable, so the single call below is
+  # behavior-identical. ISO-format input ("2026-01-15 10:00:00") parses to NA;
+  # the ISO-NA guard test in test-gsheet-api.R pins that this dead fallback
+  # must NOT be revived as a multi-format parser.
+  parsed_timestamps <- as.POSIXct(timestamps, format = "%m/%d/%Y %H:%M:%S", tz = "UTC")
 
   # Calculate cutoff date
   cutoff_date <- Sys.time() - (days_back * 24 * 60 * 60)
