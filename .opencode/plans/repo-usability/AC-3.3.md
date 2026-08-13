@@ -2,7 +2,7 @@
 ac: 3.3
 depends_on: AC-3.1
 risk: medium
-status: spec
+status: complete
 ---
 
 # AC-3.3: Behavior-lock gsheet_api.R + gcal_api.R (7 exports)
@@ -37,11 +37,16 @@ status: spec
 - risk: medium (hardcoded-URL mock seam + order lock could surface latent nondeterminism).
 
 ### Progress
-- [ ] google locked — pending
+- [x] google locked — 2026-08-13 (commits bd0e74d test(red), f80b4d5 test(fixtures); 187 pass offline, env unset; determinism 2/2 runs)
 ### Decision Log
 - spec-resolved — EXTEND test-combined-calendar.R (B wins over A's as-is; %in%-only leaves merge un-locked).
+- impl — HTTP layer mocked via httr2::with_mocked_responses() + URL-dispatch helper mock_google_fixture() serving synthetic fixtures from fixtures/{gsheet,gcal}/. Chosen over httptest2's with_mock_api file convention because build_mock_url hashes POST bodies (token POST body = signed JWT, non-deterministic per throwaway key) — URL-only matching makes key non-determinism harmless, matching the spec's stated intent.
 ### Surprises & Discoveries
-- (none yet)
+- httptest2 1.2.2 does NOT export with_mocked_responses (httr2 does) — tests must call httr2::with_mocked_responses(); httptest2's with_mock_api relies on file naming that hashes the POST body, so the spec's "httptest2 matches URL not body" only holds for URL-dispatch mocks. Resolved: URL-dispatch mock helper (helper-harness.R mock_google_fixture()).
+- check_recent_responses timestamp-format fallback is DEAD CODE: as.POSIXct() with a mismatched format returns all-NA with a WARNING, not an error, so the tryCatch never falls through to the ISO/%Y-%m-%d formats — the first format (%m/%d/%Y) always wins and ISO timestamps yield recent_count 0. Locked current behavior via MDY-format fixture + frozen clock; flag for a real refactor AC (not a behavior-lock fix).
+- utils::URLencode(..., reserved = TRUE) encodes "!" as %21 and ":" as %3A, so the sheets range URL is /values/Sheet1%21A1%3AC3 — the mock pattern must match the encoded form.
+- openssl 2.4.2 has no write_key export — use openssl::write_pem(key) to get the PEM string for the throwaway service-account JSON.
+- Negative control: temporarily patched get_combined_calendar_events with sort()+unique() and removed the error message → combined-calendar tests failed 3/12, proving order/dedup/message locks bind. Patch reverted; zero R/ edits.
 ### Idempotence & Recovery
 - Safe retry: re-record fixtures; tests idempotent offline.
 - Rollback: git revert.
