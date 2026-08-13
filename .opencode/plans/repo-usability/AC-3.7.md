@@ -2,7 +2,7 @@
 ac: 3.7
 depends_on: AC-3.4
 risk: high
-status: spec
+status: complete
 ---
 
 # AC-3.7: Refactor abs_login.R (ZERO behavior change)
@@ -40,9 +40,10 @@ status: spec
 - risk: HIGH.
 
 ### Progress
-- [ ] refactor — pending
+- [x] refactor — complete (3 commits: 78949d5 pure helpers, 61ec424 mid-risk stages, ada3586 build_base_request). Lock suite green each commit (135 pass / 1 env skip); full suite 471 pass. Nesting >=16sp: 5 -> 0; max indent 30 -> 14; 15 stops verbatim; formals of 5 exports byte-identical; NAMESPACE+DESCRIPTION byte-identical; export Rd \usage+\arguments identical (10 new internal helper Rd files only). Branch 58-abs-refactor, PR pending.
 ### Decision Log
 - spec-resolved — request-construction/regex/CSRF-order grep probes close real mock-blind gaps ("lock green = done" is FALSE here).
+- helper-name — spec/issue extraction map says `build_base_request`; Director task line said `build_abs_base_request`. Used `build_base_request` (matches plan Technical Context + issue body). Internal-only name, no lock impact.
 ### Surprises & Discoveries
 - (none yet)
 ### Idempotence & Recovery
