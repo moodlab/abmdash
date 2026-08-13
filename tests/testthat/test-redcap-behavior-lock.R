@@ -3,7 +3,8 @@
 # Locks ALL 9 exports of R/redcap_api.R against hand-crafted httptest2
 # fixtures, at VALUE level (full parsed output, row order, "" vs NA), not
 # shape level. Every "" empty-string case is exercised at its exact field
-# and documented as LOCKING-CURRENT — the fix is deferred to AC-3.9.
+# and documented as LOCKED — the AC-3.9 NA-leak sweep confirmed "" fidelity
+# at the raw layer is the pinned behavior (no upstream normalization).
 #
 # Fixture layout (all SYNTHETIC: P0xx IDs, fake names — never real
 # participant data, never real creds):
@@ -108,8 +109,9 @@ test_that("call_redcap_api and get_redcap_records lock the record response value
   wrapped <- httptest2::with_mock_api({ get_redcap_records() })
   expect_equal(wrapped, expected)
 
-  # LOCKING-CURRENT: phq8score "" and guid "" survive the JSON round-trip as
-  # "" (never coerced to NA). AC-3.9 decides whether to normalize upstream.
+  # LOCKED: phq8score "" and guid "" survive the JSON round-trip as "" (never
+  # coerced to NA). AC-3.9 pinned NO upstream normalization: the parse-once
+  # boundary is eligibility_mask, not report_to_df / the JSON layer.
   expect_identical(expected[[2]]$phq8score, "")
   expect_identical(expected[[2]]$guid, "")
   # Row order pinned: P001 before P002, as the API returned them.
@@ -125,7 +127,8 @@ test_that("get_redcap_records(fields=...) locks field selection and empty interv
     get_redcap_records(fields = c("phq8score", "interview_date"))
   })
   expect_equal(result, expected)
-  # LOCKING-CURRENT: "" interview_date is preserved as "" (not NA).
+  # LOCKED: "" interview_date is preserved as "" (not NA) — AC-3.9 pinned no
+  # upstream normalization; filter_recent_dates parse-once handles it.
   expect_identical(result[[2]]$interview_date, "")
   expect_identical(result[[2]]$phq8score, "")
 })
@@ -211,12 +214,12 @@ test_that("get_eligible_participants locks eligibility semantics incl. all \"\" 
   expect_equal(result, expected)
   expect_named(result, c("first_name", "phone_number", "interview_date", "link_to_record_id"))
 
-  # "" empty-string fidelity at the exact fields (all LOCKING-CURRENT — the
-  # AC-3.9 sweep will decide whether to change any of these):
-  #   phq8score "" (eligibility_mask parse-once guard)  -> P302 excluded, no NA row
-  #   r01es_commute "" (eligibility_mask raw-guard)      -> P303 excluded
-  #   interview_date "" (filter_recent_dates)            -> P306 excluded
-  #   r01es_name "" -> "Unknown" (first_name_of)         -> P305 first_name "Unknown"
+  # "" empty-string fidelity at the exact fields (all LOCKED — the AC-3.9
+  # sweep classified every guard and changed none of these):
+  #   phq8score "" (eligibility_mask parse-once guard)       -> P302 excluded, no NA row
+  #   r01es_commute "" (eligibility_mask char-equality guard) -> P303 excluded
+  #   interview_date "" (filter_recent_dates)                 -> P306 excluded
+  #   r01es_name "" -> "Unknown" (first_name_of)              -> P305 first_name "Unknown"
   expect_identical(nrow(result), 3L)
   expect_identical(result$first_name[3], "Unknown")          # r01es_name ""
   expect_false("Bob" %in% result$first_name)                 # phq8score ""
@@ -241,9 +244,10 @@ test_that("get_weekly_screening_stats locks 7-day counts incl. \"\" guards", {
   expect_equal(result, expected)
   expect_named(result, c("total_screenings", "eligible_count", "hispanic_count"))
 
-  # LOCKING-CURRENT:
+  # LOCKED (AC-3.9 sweep: char-equality guards benign, parse-once at
+  # eligibility_mask, no raw-layer normalization):
   #   phq8score "" (eligibility_mask parse-once guard)  -> P302 not eligible
-  #   r01es_commute "" (eligibility_mask raw-guard)     -> P303 not eligible
+  #   r01es_commute "" (eligibility_mask char-equality guard) -> P303 not eligible
   #   r01es_hispanic "" (not counted)                   -> P304 eligible but hispanic
   #                                                       not tallied (count stays 1)
   #   interview_date "" (filter_recent_dates)           -> P306 not in the 7-day window
