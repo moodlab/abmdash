@@ -2,7 +2,7 @@
 ac: 2.2
 depends_on: AC-2.1 (vignettes/ + DESCRIPTION mechanism), AC-1.1 (OKF links)
 risk: low
-status: spec
+status: complete
 ---
 
 # AC-2.2: FAQ vignette — verbatim errors → cause → repo-specific fix
@@ -51,14 +51,25 @@ status: spec
 - risk: low (docs-only). HARM surface HIGH.
 
 ### Progress
-- [ ] FAQ written — pending
+- [x] FAQ written — 2026-08-13, commit 1c6e6c9 (vignettes/faq.Rmd, 322 lines, 9 entries)
+- [x] test-faq-verbatim.R — 40 assertions, all green (also under devtools::test(): 85 pass)
+- [x] README FAQ pointer added (Troubleshooting section, first bullet)
+- [x] All AC-2.2 probes pass (rg -F sweeps, WARNING-context check, no scripts/ prefix)
+- [x] rmarkdown::render sanity check — RENDER OK (vignette mechanism matches AC-2.1)
 
 ### Decision Log
 - spec-resolved — durable content-grep test (test-faq-verbatim.R) included in AC; root-relative script paths only (no scripts/ prefix).
+- impl — quoted error strings limited to repo-findable substrings: the full base-R prefix `Error in data.frame(..., check.rows = FALSE):` is NOT in repo source, so the FAQ headlines only `row names contain missing values` (findable at R/redcap_api.R:470). Matches P2's verbatim rule strictly.
 
 ### Surprises & Discoveries
-- (none yet)
+- The Write tool soft-wraps long single-line paragraphs in .Rmd files (~80-100 cols), silently splitting source lines. Two test failures traced to this: the `rm -rf` line lost its `WARNING` token to the previous line, and `renv::snapshot()` + `never` landed on different lines. Fix: keep sentence-level line breaks explicit (the verbatim-invariant test catches exactly this kind of drift — the content gate works as designed).
+- testthat::test_dir("tests/testthat") fails on the existing suite ("No packages loaded with pkgload", could not find function) — the repo's real harness is devtools::test() (Makefile `make test`). test_dir(filter="faq-verbatim") works standalone because the content-grep test loads no package functions.
+- rmarkdown::render of the vignette succeeds — mechanism consistent with AC-2.1 (VignetteEngine knitr::rmarkdown, 6 eval=FALSE chunks).
 
 ### Idempotence & Recovery
 - Safe retry: re-run builder steps.
 - Rollback: git revert.
+
+### Carryover Log
+- Cycle 1 (PR #47): 2 fix-now (test allowlist asymmetry — corpus-side only for 8/9 entries, paraphrase/fabrication passes CI; eval=FALSE policy not test-enforced) + 3 consider folds (full httr2 string, README pointer grepl, OKF file.exists). Resolved in 28a0618 (single-file test strengthening; suite 85→107; fail-on-break verified both directions). Status: resolved.
+- Cycle 2 (PR #47): clean pass. Reviewer B noted 2 consider-level test-robustness items: eval=FALSE fixed=TRUE match brittle against legit spaced form `eval = FALSE` (all vignettes currently use no-space convention — theoretical); floor guard >=8 tight vs future FAQ dedup. Deferred — noted for future docs-maintenance. Status: deferred-with-note.

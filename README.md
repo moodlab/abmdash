@@ -126,6 +126,7 @@ Regenerate the index whenever it goes stale:
 
 Things breaking? The troubleshooting vignettes are written for non-engineers and follow an "if you see X, here's the cause and the fix" pattern:
 
+- [FAQ: runtime errors and their fixes](vignettes/faq.Rmd) — the most common errors with exact error text, cause, and repo-specific fix
 - [REDCap data access](vignettes/redcap-troubleshooting.Rmd) — missing token, the `""` vs `NA` bug class
 - [Google Sheets and Calendar access](vignettes/google-troubleshooting.Rmd) — service-account JSON quoting and sharing
 - [ABS portal login and downloads](vignettes/abs-troubleshooting.Rmd) — credentials, `Not authenticated`, connection quirks
