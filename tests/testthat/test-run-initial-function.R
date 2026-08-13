@@ -92,3 +92,16 @@ test_that("get_enrollment_targets does not mutate the data files", {
   expect_identical(tools::md5sum(data_csv), before_data)
   expect_identical(tools::md5sum(ext_csv), before_ext)
 })
+
+test_that("get_enrollment_targets stops when no CSV path resolves (L97)", {
+  # AC-3.4 error-path lock: the unqualified file.exists loop (R/run_initial_
+  # function.R:88-94) must hit the stop when no candidate path exists. Shadowing
+  # file.exists in base makes every candidate FALSE, so csv_path stays NULL and
+  # the exact stop string fires. Deleting the stop (or rewording it) fails this.
+  local_isolated_env()
+  local_mocked_bindings(file.exists = function(path) FALSE, .package = "base")
+  expect_error(
+    get_enrollment_targets(),
+    "Could not find enrollment_targets.csv file"
+  )
+})
