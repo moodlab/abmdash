@@ -765,25 +765,7 @@ get_enrollment_stats <- function() {
     }
 
     # Check if GUID field exists (need to identify the actual field name)
-    # The global unique identifier field is "guid"
-    guid_field <- NULL
-    possible_guid_fields <- c("guid", "global_unique_identifier", "participant_guid",
-                              "unique_id", "study_id")
-
-    for (field in possible_guid_fields) {
-      if (field %in% names(report_df)) {
-        guid_field <- field
-        break
-      }
-    }
-
-    # If no GUID field found, check for any field with "guid" or "unique" in the name
-    if (is.null(guid_field)) {
-      guid_cols <- grep("guid|unique", names(report_df), ignore.case = TRUE, value = TRUE)
-      if (length(guid_cols) > 0) {
-        guid_field <- guid_cols[1]
-      }
-    }
+    guid_field <- detect_guid_field(report_df)
 
     # Group by record_id to handle longitudinal data
     # A participant is enrolled if ANY row has a GUID
@@ -947,4 +929,27 @@ get_enrollment_stats <- function() {
       error = e$message
     ))
   })
+}
+#' Detect the Global Unique Identifier Field
+#'
+#' REDCap GUID columns vary by project. Prefer known field names in priority
+#' order, then fall back to the first column whose name contains "guid" or
+#' "unique" (case-insensitive).
+#'
+#' @param report_df Data frame of report rows
+#'
+#' @return Name of the GUID column, or NULL when none is found
+#' @keywords internal
+detect_guid_field <- function(report_df) {
+  known_names <- c("guid", "global_unique_identifier", "participant_guid",
+                   "unique_id", "study_id")
+  known_match <- intersect(known_names, names(report_df))
+  if (length(known_match) > 0) {
+    return(known_match[1])
+  }
+  fuzzy_match <- grep("guid|unique", names(report_df), ignore.case = TRUE, value = TRUE)
+  if (length(fuzzy_match) > 0) {
+    return(fuzzy_match[1])
+  }
+  NULL
 }
