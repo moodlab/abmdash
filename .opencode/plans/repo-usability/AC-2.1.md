@@ -2,7 +2,7 @@
 ac: 2.1
 depends_on: wave-1 shipped (docs/okf/ bundle, codegraph README section)
 risk: medium
-status: spec
+status: complete
 ---
 
 # AC-2.1: Troubleshooting vignettes for non-engineers
@@ -54,13 +54,16 @@ status: spec
 - risk: medium — no code changes, HIGH user-harm if commands wrong.
 
 ### Progress
-- [ ] vignettes written — pending
+- [x] vignettes written — done (2026-08-13): 5 vignettes created, all 15 probes pass, all 5 render hermetic (eval=FALSE) via rmarkdown::render
 
 ### Decision Log
 - spec-resolved — VignetteBuilder: knitr + Suggests: knitr; knitr already in renv.lock L694 (no lock change); .Rbuildignore must NOT get ^vignettes.
 
 ### Surprises & Discoveries
-- (none yet)
+- P5 and P6 probes as written are structurally broken with multiple files: `rg -o` prefixes every match with `path:`, so the `^(build-dashboard|...)$` / `^(REDCAP_API_TOKEN|...)$` anchors never match and even LEGITIMATE scripts/env vars are reported as failures. Fixed by running the equivalent check with `rg -I` (no filename). The verbatim P5/P6 lines in the spec need the -I flag added; content side was verified clean against the intent.
+- "make sure" and "make targets" are natural-English phrases that trip the P4 `make [a-z-]+` regex — rephrased prose to "confirm"/"build targets" to keep the probe meaningful (an invented-target check shouldn't fire on prose).
+- The redcap vignette placeholder `REDCAP_API_TOKEN=YOUR_TOKEN` violates P6 (ends in _TOKEN) — placeholder rewritten as `<your-token>`.
+- rmarkdown::render() of all 5 vignettes succeeds with zero execution — eval=FALSE hermeticity verified end-to-end, not just by regex.
 
 ### Idempotence & Recovery
 - Safe retry: re-run builder steps; prose files idempotent.

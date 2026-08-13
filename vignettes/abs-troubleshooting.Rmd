@@ -1,0 +1,74 @@
+---
+title: "Troubleshooting ABS portal login and downloads"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Troubleshooting ABS portal login and downloads}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+## What this guide is for
+
+The dashboard downloads the ABS (Attention Bias Study) test-data CSV by logging
+into the admin portal at `https://abs.la.utexas.edu` with a username and
+password (`R/abs_login.R`). The login is unusual — the portal uses the
+Livewire framework and sends malformed HTTP/2 headers — so the module has to
+turn off SSL certificate checks and force HTTP/2. That works, but it makes the
+failure modes a little unusual too.
+
+Credentials come from two environment variables, both required:
+
+- `ABS_USERNAME`
+- `ABS_PASSWORD`
+
+They live in `.Renviron` at the repo root and are loaded with
+`source ./load-env.sh`.
+
+**If you see** → **Cause** → **Fix**:
+
+| If you see | Cause | Fix |
+|---|---|---|
+| `Not authenticated` | The tests page redirected back to the login page. The session expired, the password was rotated, or the credentials are wrong | Confirm both variables are set (`Sys.getenv("ABS_USERNAME")`), check the password was not rotated, then create a fresh session: `session <- abs_login()` |
+| `Failed to parse` / redirect to `/admin/login` on every call | Same as above, but during the download step rather than the login step | Re-login and re-download in one session — `download_abs_csv()` requires the session object returned by `abs_login()` |
+| SSL / connection errors (`certificate verify failed`, `malformed HTTP/2`, `connection reset`) | The ABS server serves broken HTTP/2 headers, so the module disables certificate verification (`ssl_verifypeer = 0`) and forces HTTP/2. Plain `httr2` code without those settings fails against this server | Do not "fix" the connection settings in custom code. Reuse `abs_login()` / `download_abs_csv()` as-is; they already carry the working settings |
+| `make docker-test-auth` fails at the login step | The container could not read the credentials — it needs a `.Renviron` file at the repo root (mounted read-only), or the credentials inside it are wrong | Create `.Renviron` at the repo root with `ABS_USERNAME` and `ABS_PASSWORD`, then re-run `make docker-test-auth` |
+| Login succeeds but the CSV has zero rows | The portal is up and authenticated, but the tests page has no data yet | Not a code problem — check the ABS portal in a browser with the same account |
+
+## Testing the login the way the maintainers do
+
+`make docker-test-auth` is the maintained end-to-end login check: it builds the
+Docker image and, inside the container, logs in, downloads the CSV, and prints
+how many rows came back. That is the single best command to run when you
+suspect ABS credentials are the problem:
+
+```{r docker-test-auth, eval=FALSE}
+# From the repo root, in a terminal (requires Docker + a .Renviron file):
+#   make docker-test-auth
+#
+# Expected happy-path output:
+#   Login OK
+#   Downloaded N rows
+```
+
+## Why the connection settings are weird (and why you should not touch them)
+
+The ABS server sends headers that do not conform to the HTTP/2 specification.
+A normal `httr2` request fails before it even reaches the login form. The
+module works around this by:
+
+- disabling certificate verification (`ssl_verifypeer = 0`,
+  `ssl_verifyhost = 0`) so the malformed TLS handshake is tolerated, and
+- forcing `http_version = 2`.
+
+Both are confined to the module — nothing else in the dashboard disables TLS
+checks. If you see TLS warnings in the log, they are expected and safe in this
+one place.
+
+## Still stuck?
+
+- Read the module notes in `../docs/okf/modules/abs_login.md` — they document
+  the redirect-detection and the exact environment-variable hygiene.
+- If the failure only shows up in the daily build, see the CI troubleshooting
+  vignette: the workflow needs `ABS_USERNAME` and `ABS_PASSWORD` set as
+  repository secrets, and a rotated password will fail the same way locally
+  and in CI.

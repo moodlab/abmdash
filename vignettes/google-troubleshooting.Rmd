@@ -1,0 +1,83 @@
+---
+title: "Troubleshooting Google Sheets and Calendar access"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Troubleshooting Google Sheets and Calendar access}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+## What this guide is for
+
+The dashboard reads response forms and participant-issue notes from Google
+Sheets (`R/gsheet_api.R`) and events from Google Calendar (`R/gcal_api.R`).
+Both use the same service-account login, so nearly every failure comes down to
+one environment variable: `GOOGLE_SERVICE_ACCOUNT_JSON`.
+
+The service account is a "bot" Google user that the project created in the
+Google Cloud console. The dashboard authenticates as that bot using a JSON
+key file. That JSON must survive a trip through `.Renviron`, which is where
+the quoting problems come from.
+
+**If you see** → **Cause** → **Fix** for every common error:
+
+| If you see | Cause | Fix |
+|---|---|---|
+| `GOOGLE_SERVICE_ACCOUNT_JSON environment variable is not set or is empty` | The variable is missing or blank in your environment | Add `GOOGLE_SERVICE_ACCOUNT_JSON='...'` to `.Renviron` and run `source ./load-env.sh`. The single quotes matter — see the quoting rules below |
+| `Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON: ...` | The JSON string was mangled in transit: outer double quotes kept, inner quotes stripped, or the value split across lines (the parse happens in `R/gsheet_api.R` and `R/gcal_api.R`) | Put the whole JSON on **one line**, wrapped in **single quotes** in `.Renviron`, and keep the inner double quotes intact. See the before/after below |
+| `Failed to read private key` / an `openssl` error during login | The `private_key` field in the JSON lost its newlines: they must stay escaped as `\n` (two characters) inside the one-line value, not become real line breaks | Re-copy the key from the Google Cloud console service-account page and paste it so `\n` appears literally in the file. Do not let your editor "fix" it into real newlines |
+| `403` / `The caller does not have permission` | The service account email is not shared on the sheet or calendar you are reading | Share the sheet (or calendar) with the service account email found in `client_email` inside the JSON — the same way you would share with a person |
+
+## The `.Renviron` quoting rules
+
+`.Renviron` lines are `NAME=VALUE`. For a long JSON value the safe shape is:
+
+```
+GOOGLE_SERVICE_ACCOUNT_JSON='{"type": "service_account", "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQ...\n-----END PRIVATE KEY-----\n", "client_email": "bot@project.iam.gserviceaccount.com"}'
+```
+
+The three rules that prevent the parse failures:
+
+1.  **One line.** The entire JSON must be on a single line. A real newline
+    inside the value breaks the parse.
+2.  **Single quotes around the whole value.** The single quotes tell R to
+    keep the inner double quotes. Without them the JSON is invalid the moment
+    it is read back.
+3.  **`\n` stays as two characters.** Inside the private key, the escaped
+    newline sequence must appear literally as backslash-`n` in the file. The
+    dashboard code unescapes it before signing (`gsheet_api.R` and
+    `gcal_api.R` both do this). If the key contains real newlines instead,
+    the login fails with a private-key error.
+
+A quick self-check after editing `.Renviron`:
+
+```{r check-json, eval=FALSE}
+# source ./load-env.sh first, then:
+raw <- Sys.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+nchar(raw)            # should be several thousand, not 0
+grep("\\n", raw, value = TRUE)   # private_key should still contain \n pairs
+jsonlite::fromJSON(raw)$client_email   # should print the bot email
+```
+
+## Empty sheets and empty calendars are not errors
+
+Sometimes there is no failure at all:
+
+- `read_google_sheet()` returns a zero-row data frame when a sheet is empty
+  (it prints a warning — that is expected, not a bug).
+- `get_calendar_events()` returns no events when nothing is scheduled in the
+  requested window. Try widening `time_min`/`time_max` before assuming the
+  calendar access is broken.
+
+If you genuinely see no data where you expect data, check the sheet or
+calendar *itself* first: the bot can only read what a human has shared with it.
+
+## Still stuck?
+
+- Read the module notes: `../docs/okf/modules/gsheet_api.md` and
+  `../docs/okf/modules/gcal_api.md` document the defensive parsing and the
+  sharing rules in detail.
+- Check that a *different* machine (or the deployed dashboard) still works —
+  if it does, the problem is local `.Renviron` quoting, not the credentials.
+- For problems that only appear in the Docker build, see the Docker
+  troubleshooting vignette.
