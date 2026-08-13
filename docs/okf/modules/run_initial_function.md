@@ -28,13 +28,13 @@ Exported functions (NAMESPACE):
 - `get_central_time()` — formatted Central Time string (`%Y-%m-%d %I:%M %p %Z`, tz `America/Chicago`)
 - `get_enrollment_targets()` — data.frame from `enrollment_targets.csv`, probing 6 candidate paths (system.file extdata, `inst/extdata/`, `data/`, relative variants)
 
-Related export defined in the sibling 1-export module [week12_tracking](run_initial_function.md) (dependency):
+Related export defined in the sibling 1-export module week12_tracking (dependency):
 
 - `get_upcoming_followups(days_ahead = 14)` — Week 12/16/28 follow-up scheduling from REDCap logs (source: `R/week12_tracking.R`)
 
 # Dependencies
 
-- [week12_tracking](run_initial_function.md) — `get_upcoming_followups()` (dependency mention; consumes `get_redcap_logs()` from [redcap_api](redcap_api.md))
+- week12_tracking — `get_upcoming_followups()` (dependency mention; consumes `get_redcap_logs()` from [redcap_api](redcap_api.md))
 - [redcap_api](redcap_api.md) — transitively, via `get_upcoming_followups()`
 - Files: `inst/extdata/enrollment_targets.csv`, `data/enrollment_targets.csv`
 - R packages: `utils` (read.csv)

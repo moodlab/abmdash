@@ -17,6 +17,6 @@ raw source under `R/`.
 
 - Concept boundaries == `R/` file boundaries; one concept doc per source file.
 - `pure: true` frontmatter marks pure-core modules; `false` marks effectful API shells.
-- Cross-links use bundle-relative absolute paths (`/modules/redcap_api.md`).
+- Cross-links use relative paths — same-dir links as `name.md`, cross-dir links as `../modules/name.md`. Bundle-absolute style (`/modules/...`) is avoided because the okf-bundle skill Step-7 link validator falsely reports such links as broken (see log.md).
 - Source ground truth: `DESCRIPTION`, `NAMESPACE`, `R/*.R`, `Dockerfile`,
   `.github/workflows/build-dashboard.yml`, `build-dashboard.sh`.
