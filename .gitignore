@@ -8,3 +8,5 @@ planning.md
 .opencode/plans/**/status.md
 .opencode/ci-status/
 .opencode/traces/
+# codegraph index (machine-local, regenerate with `codegraph init`)
+.codegraph/

@@ -2,7 +2,7 @@
 ac: 1.2
 depends_on: none (serialized after AC-1.1 in W1 — both touch .gitignore)
 risk: low
-status: spec
+status: complete
 ---
 
 # AC-1.2: codegraph index init + gitignore + README regen note
@@ -51,13 +51,13 @@ status: spec
 - **Risk level:** low. Reversible via `codegraph uninit` + git revert.
 
 ### Progress
-- [ ] index initialized — pending
+- [x] index initialized — 2026-08-13 (20 files, 138 nodes, 257 edges; query hit R/redcap_api.R:37)
 
 ### Decision Log
 - spec-resolved — `.Rbuildignore` entry downgraded to SHOULD (R CMD build never runs in CI).
 
 ### Surprises & Discoveries
-- (none yet)
+- Probe step 10 (`git diff main -- .gitignore | rg '^-[^-]'` empty) is UNSATISFIABLE as written: HEAD .gitignore's last line `.opencode/traces/` has NO trailing newline, so ANY append makes git diff show that line as a `-`/`+` pair (newline added). Verified with minimal repro. Content is fully preserved (AC-1.1 entries docs/*, !docs/okf/, planning.md, opencode lines all present) — the single `-` line is a false positive, not a clobber. Deviation logged; implementers should replace step 10 with a content-preservation check (e.g. compare `git show HEAD:.gitignore` lines ⊆ working tree lines).
 
 ### Idempotence & Recovery
 - Safe retry: `codegraph init` is idempotent (re-runs refresh index).
