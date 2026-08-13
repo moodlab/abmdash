@@ -5,12 +5,12 @@
 ## Learn the repo
 
 - [`docs/okf/index.md`](docs/okf/index.md) — the agent/human map: module docs, deploy pipeline, conventions. Read this first.
-- [`docs/okf/modules/`](docs/okf/modules/index.md) — 9 module concept docs (one per `R/` source file).
+- [`docs/okf/modules/`](docs/okf/modules/index.md) — module concept docs for the R/ modules (week12_tracking.R is covered via the run_initial_function doc; a full OKF regen is a known follow-up)
 - [`.opencode/skills/abmdash-guide/`](.opencode/skills/abmdash-guide/SKILL.md) — repo skill: learn-repo walkthrough + debug workflows.
 
 ## Troubleshooting
 
-The vignettes are written for non-engineers and follow an "if you see X, here's the cause and the fix" pattern (viewable directly on GitHub):
+The vignettes are written for non-engineers and follow an "if you see X, here's the cause and the fix" pattern. The source lives in `vignettes/*.Rmd`; GitHub serves the raw `.Rmd` source — open in RStudio and click *Knit* to render, or read the source directly:
 
 - [FAQ: runtime errors and their fixes](vignettes/faq.Rmd) — most common errors with exact error text, cause, and fix
 - [REDCap data access](vignettes/redcap-troubleshooting.Rmd) — missing token, `""` vs `NA` bug class
@@ -21,7 +21,7 @@ The vignettes are written for non-engineers and follow an "if you see X, here's 
 
 ## Behavior-lock test suite
 
-`tests/testthat/` is the executable spec: tests pin current behavior (e.g. [`test-redcap-behavior-lock.R`](tests/testthat/test-redcap-behavior-lock.R)). Harness utilities in [`helper-harness.R`](tests/testthat/helper-harness.R) provide `with_fixed_clock()` (pins time/TZ) and `local_isolated_env()` (unsets API credentials). [`RECORDING.md`](RECORDING.md) documents the fixture recording + redaction workflow (fixtures live in `tests/testthat/fixtures/`).
+`tests/testthat/` is the executable spec: tests pin current behavior (e.g. [`test-redcap-behavior-lock.R`](tests/testthat/test-redcap-behavior-lock.R), [`test-snapshot-lock.R`](tests/testthat/test-snapshot-lock.R)). Harness utilities in [`helper-harness.R`](tests/testthat/helper-harness.R) provide `with_fixed_clock()` (pins time/TZ) and `local_isolated_env()` (unsets API credentials). [`RECORDING.md`](RECORDING.md) documents the fixture recording + redaction workflow (fixtures live in `tests/testthat/fixtures/`).
 
 Run tests:
 
@@ -32,6 +32,7 @@ make test-trad            # trad-compliance tests only
 
 ## Build & run
 
+- Restore renv (`renv::restore()`) BEFORE running `make test` on a fresh clone.
 - **Makefile targets** — `test`, `test-trad`, `docker-build`, `docker-test-auth`, `docker-render` (full local render, same as CI), `lint`, `serve` (serves `docs/` on :8000).
 - [`build-dashboard.sh`](build-dashboard.sh) — local deploy. **WARNING: it runs `rm -rf docs` — back up anything under `docs/okf/` you want to keep first.**
 - [`load-env.sh`](load-env.sh) — sources `.Renviron` (API credentials) for local runs.
