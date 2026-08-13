@@ -42,14 +42,7 @@ call_redcap_api <- function(content = "record", format = "json", ...) {
   
   token <- get_redcap_token()
   
-  # Build the request body
-  body_params <- list(
-    token = token,
-    content = content,
-    format = format,
-    returnFormat = format,
-    ...
-  )
+  body_params <- build_request_body(token = token, content = content, format = format, ...)
   
   # Make the API request
   api_url <- "https://redcap.prc.utexas.edu/redcap/api/"
@@ -60,21 +53,56 @@ call_redcap_api <- function(content = "record", format = "json", ...) {
       httr2::req_body_form(!!!body_params) |>
       httr2::req_perform()
     
-    # Parse response based on format
-    if (format == "json") {
-      content <- httr2::resp_body_json(response)
-    } else if (format == "csv") {
-      content <- httr2::resp_body_string(response)
-      content <- utils::read.csv(text = content, stringsAsFactors = FALSE)
-    } else {
-      content <- httr2::resp_body_string(response)
-    }
-    
-    return(content)
+    return(parse_response(response, format))
     
   }, error = function(e) {
     stop("REDCap API call failed: ", e$message)
   })
+}
+
+#' Build the REDCap API Request Body
+#'
+#' Assembles the POST body shared by every REDCap API export: the auth token,
+#' the content/format selection, and the echo of \code{format} into
+#' \code{returnFormat} (the API expects both).
+#'
+#' @param token Character API token from \code{get_redcap_token()}
+#' @param content Character string specifying what to export
+#' @param format Character string specifying the format ("json", "csv", "xml")
+#' @param ... Additional REDCap API parameters
+#'
+#' @return Named list of body parameters
+#' @keywords internal
+build_request_body <- function(token, content, format, ...) {
+  return(list(
+    token = token,
+    content = content,
+    format = format,
+    returnFormat = format,
+    ...
+  ))
+}
+
+#' Parse the REDCap API Response
+#'
+#' Decodes the response body according to the requested format: JSON becomes a
+#' nested list, CSV becomes a data frame, anything else stays a raw string.
+#'
+#' @param response An httr2 response object
+#' @param format Character string specifying the format ("json", "csv", "xml")
+#'
+#' @return Parsed response (list, data frame, or character string)
+#' @keywords internal
+parse_response <- function(response, format) {
+  if (format == "json") {
+    parsed_response <- httr2::resp_body_json(response)
+  } else if (format == "csv") {
+    body_text <- httr2::resp_body_string(response)
+    parsed_response <- utils::read.csv(text = body_text, stringsAsFactors = FALSE)
+  } else {
+    parsed_response <- httr2::resp_body_string(response)
+  }
+  return(parsed_response)
 }
 
 #' Get REDCap Records
@@ -178,14 +206,7 @@ get_survey_completions <- function(surveys = NULL, records = NULL, format = "jso
   
   # Convert to data frame if it's a list
   if (is.list(metadata) && !is.data.frame(metadata)) {
-    metadata_df <- do.call(rbind, lapply(metadata, function(x) {
-      data.frame(
-        field_name = x$field_name %||% "",
-        form_name = x$form_name %||% "",
-        field_type = x$field_type %||% "",
-        stringsAsFactors = FALSE
-      )
-    }))
+    metadata_df <- metadata_to_df(metadata)
   } else {
     metadata_df <- metadata
   }
@@ -204,13 +225,7 @@ get_survey_completions <- function(surveys = NULL, records = NULL, format = "jso
   
   if (length(instrument_names) == 0) {
     warning("No survey instruments found")
-    return(data.frame(
-      record_id = character(0),
-      survey_instrument = character(0),
-      survey_timestamp = character(0),
-      survey_complete = character(0),
-      stringsAsFactors = FALSE
-    ))
+    return(empty_survey_frame())
   }
   
   # Build field list for timestamp and complete fields
@@ -227,32 +242,123 @@ get_survey_completions <- function(surveys = NULL, records = NULL, format = "jso
   
   if (is.null(survey_data) || length(survey_data) == 0) {
     warning("No survey data retrieved")
-    return(data.frame(
-      record_id = character(0),
-      survey_instrument = character(0),
-      survey_timestamp = character(0),
-      survey_complete = character(0),
-      stringsAsFactors = FALSE
-    ))
+    return(empty_survey_frame())
   }
   
   # Convert to data frame if needed
   if (is.list(survey_data) && !is.data.frame(survey_data)) {
-    survey_df <- do.call(rbind, lapply(survey_data, function(x) {
-      # Ensure all expected fields exist
-      for (field in all_fields) {
-        if (!field %in% names(x)) {
-          x[[field]] <- ""
-        }
-      }
-      data.frame(x, stringsAsFactors = FALSE)
-    }))
+    survey_df <- list_to_df(survey_data, all_fields)
   } else {
     survey_df <- survey_data
   }
   
   # Reshape from wide to long format
-  result_list <- list()
+  return(reshape_long(survey_df, instrument_names))
+}
+
+#' Flatten REDCap Metadata into a Data Frame
+#'
+#' REDCap metadata is returned as a list of field dictionaries. This flattens
+#' each entry to the columns this module reads, defaulting missing values to ""
+#' via the null-coalescing helper \code{\%||\%}.
+#'
+#' @param metadata List of metadata field entries
+#'
+#' @return Data frame with columns field_name, form_name, field_type
+#' @keywords internal
+metadata_to_df <- function(metadata) {
+  return(do.call(rbind, lapply(metadata, function(metadata_entry) {
+    return(data.frame(
+      field_name = metadata_entry$field_name %||% "",
+      form_name = metadata_entry$form_name %||% "",
+      field_type = metadata_entry$field_type %||% "",
+      stringsAsFactors = FALSE
+    ))
+  })))
+}
+
+#' Ensure a Survey Record Carries Every Expected Field
+#'
+#' REDCap omits unset fields from JSON responses. Fill any missing expected
+#' field with "" so the row converts cleanly to a data frame.
+#'
+#' @param record Named list for one survey record
+#' @param all_fields Character vector of field names that must exist
+#'
+#' @return The record with every \code{all_fields} present
+#' @keywords internal
+ensure_fields <- function(record, all_fields) {
+  for (field in all_fields) {
+    if (!field %in% names(record)) {
+      record[[field]] <- ""
+    }
+  }
+  return(record)
+}
+
+#' Flatten Survey Records into a Data Frame
+#'
+#' @param rows List of survey record lists from \code{get_redcap_records()}
+#' @param all_fields Character vector of expected field names
+#'
+#' @return Data frame with one row per record
+#' @keywords internal
+list_to_df <- function(rows, all_fields) {
+  return(do.call(rbind, lapply(rows, function(survey_record) {
+    return(data.frame(ensure_fields(survey_record, all_fields), stringsAsFactors = FALSE))
+  })))
+}
+
+#' Empty Survey Result
+#'
+#' The zero-row frame every no-data branch of get_survey_completions returns.
+#'
+#' @return Data frame with the survey result columns and zero rows
+#' @keywords internal
+empty_survey_frame <- function() {
+  return(data.frame(
+    record_id = character(0),
+    survey_instrument = character(0),
+    survey_timestamp = character(0),
+    survey_complete = character(0),
+    stringsAsFactors = FALSE
+  ))
+}
+
+#' Keep Rows with Any Survey Activity
+#'
+#' REDCap reports "" for unset values; keep a row only if its timestamp or
+#' completion field is set. Operator precedence: \code{&} binds tighter than
+#' \code{|}, so the guard means timestamp-set OR complete-set.
+#'
+#' @param instrument_data Data frame for one instrument
+#'
+#' @return The input filtered to rows with any survey activity
+#' @keywords internal
+activity_guard <- function(instrument_data) {
+  return(instrument_data[
+    !is.na(instrument_data$survey_timestamp) &
+    instrument_data$survey_timestamp != "" |
+    !is.na(instrument_data$survey_complete) &
+    instrument_data$survey_complete != "",
+  ])
+}
+
+#' Reshape Survey Data from Wide to Long
+#'
+#' One row per instrument per record. Instruments without matching timestamp
+#' and complete columns in the data are skipped; the activity guard drops rows
+#' with no survey activity.
+#'
+#' @param survey_df Wide survey data frame (record_id plus per-instrument
+#'   timestamp and complete columns)
+#' @param instrument_names Character vector of instrument names
+#'
+#' @return Long data frame with columns record_id, survey_instrument,
+#'   survey_timestamp, survey_complete
+#' @keywords internal
+reshape_long <- function(survey_df, instrument_names) {
+  instrument_rows <- list()
   
   for (instrument in instrument_names) {
     timestamp_field <- paste0(instrument, "_timestamp")
@@ -267,31 +373,19 @@ get_survey_completions <- function(surveys = NULL, records = NULL, format = "jso
         stringsAsFactors = FALSE
       )
       
-      # Only include rows where there's some survey activity
-      instrument_data <- instrument_data[
-        !is.na(instrument_data$survey_timestamp) & 
-        instrument_data$survey_timestamp != "" |
-        !is.na(instrument_data$survey_complete) & 
-        instrument_data$survey_complete != "", 
-      ]
+      instrument_data <- activity_guard(instrument_data)
       
-      result_list[[instrument]] <- instrument_data
+      instrument_rows[[instrument]] <- instrument_data
     }
   }
   
   # Combine all instruments
-  if (length(result_list) > 0) {
-    final_result <- do.call(rbind, result_list)
-    rownames(final_result) <- NULL
-    return(final_result)
+  if (length(instrument_rows) > 0) {
+    combined_survey_data <- do.call(rbind, instrument_rows)
+    rownames(combined_survey_data) <- NULL
+    return(combined_survey_data)
   } else {
-    return(data.frame(
-      record_id = character(0),
-      survey_instrument = character(0),
-      survey_timestamp = character(0),
-      survey_complete = character(0),
-      stringsAsFactors = FALSE
-    ))
+    return(empty_survey_frame())
   }
 }
 
@@ -391,14 +485,7 @@ get_eligible_participants <- function() {
       ))
     }
     
-    # Convert list to data frame
-    if (is.list(raw_data) && !is.data.frame(raw_data)) {
-      report_df <- do.call(rbind, lapply(raw_data, function(x) {
-        data.frame(x, stringsAsFactors = FALSE)
-      }))
-    } else {
-      report_df <- raw_data
-    }
+    report_df <- report_to_df(raw_data)
     
     if (is.null(report_df) || nrow(report_df) == 0) {
       return(data.frame(
@@ -415,40 +502,12 @@ get_eligible_participants <- function() {
     one_month_ago <- Sys.Date() - 30
     today <- Sys.Date()
     
-    # First filter by date if interview_date is available
-    if ("interview_date" %in% names(report_df)) {
-      # Parse interview_date and filter to past month
-      report_df$interview_date_parsed <- as.Date(report_df$interview_date)
-      recent_records <- report_df[
-        !is.na(report_df$interview_date_parsed) &
-        report_df$interview_date_parsed >= one_month_ago &
-        report_df$interview_date_parsed <= today,
-      ]
-    } else {
-      recent_records <- report_df
-    }
+    recent_records <- filter_recent_dates(report_df, one_month_ago, today)
     
     recent_count <- nrow(recent_records)
     
-    # Apply eligibility criteria to recent records.
-    # Parse phq8score once: as.numeric() yields NA for empty/unparseable
-    # values, and an NA in the row index would leak an all-NA row into the
-    # result (and later crash data.frame() with "row names contain missing
-    # values"), so guard on the parsed value, not the raw string.
-    phq8score_num <- suppressWarnings(as.numeric(recent_records$phq8score))
-    eligible_participants <- recent_records[
-      !is.na(recent_records$r01es_commute) & recent_records$r01es_commute == "1" &
-      !is.na(recent_records$r01es_austin) & recent_records$r01es_austin == "1" &
-      !is.na(recent_records$r01es_phone) & recent_records$r01es_phone == "1" &
-      !is.na(recent_records$r01es_computer) & recent_records$r01es_computer == "1" &
-      !is.na(recent_records$r01es_bpd) & recent_records$r01es_bpd == "0" &
-      !is.na(recent_records$r01es_psychotherapy) & recent_records$r01es_psychotherapy == "0" &
-      !is.na(phq8score_num) & phq8score_num >= 17 &
-      !is.na(recent_records$r01es_druguse) & recent_records$r01es_druguse == "0" &
-      !is.na(recent_records$medchng) & recent_records$medchng == "0" &
-      !is.na(recent_records$r01es_medstop) & recent_records$r01es_medstop == "0" &
-      !is.na(recent_records$r01es_medstart) & recent_records$r01es_medstart == "0",
-    ]
+    # Apply eligibility criteria to recent records (see eligibility_mask).
+    eligible_participants <- recent_records[eligibility_mask(recent_records), ]
 
     eligible_count <- nrow(eligible_participants)
 
@@ -467,14 +526,7 @@ get_eligible_participants <- function() {
     # USE.NAMES = FALSE: sapply would otherwise name the result with the full
     # name values; an NA name value is then promoted to a row name by
     # data.frame() below and raises "row names contain missing values".
-    first_names <- sapply(eligible_participants$r01es_name, function(full_name) {
-      if (is.null(full_name) || is.na(full_name) || full_name == "") {
-        return("Unknown")
-      }
-      # Get the first word (before first space)
-      first_word <- sub("\\s.*", "", full_name)
-      return(first_word)
-    }, USE.NAMES = FALSE)
+    first_names <- sapply(eligible_participants$r01es_name, first_name_of, USE.NAMES = FALSE)
 
     # Return the specific columns for eligible participants
     result <- data.frame(
@@ -498,8 +550,102 @@ get_eligible_participants <- function() {
   })
 }
 
-# Helper function for null coalescing
+# Null coalescing helper: x unless NULL, then y.
+# The metadata fixture has zero NULL fields, so the right branch is untested
+# by the lock — the guard is retained for real metadata where REDCap can
+# omit fields from JSON responses.
 `%||%` <- function(x, y) if (is.null(x)) y else x
+
+#' Flatten Report Rows into a Data Frame
+#'
+#' REDCap report responses come back as a list of row lists; convert to a data
+#' frame when needed. Already-data-frame responses pass through unchanged.
+#'
+#' @param raw_data List of report row lists, or a data frame
+#'
+#' @return Data frame with one row per report record
+#' @keywords internal
+report_to_df <- function(raw_data) {
+  if (is.list(raw_data) && !is.data.frame(raw_data)) {
+    return(do.call(rbind, lapply(raw_data, function(report_record) {
+      return(data.frame(report_record, stringsAsFactors = FALSE))
+    })))
+  } else {
+    return(raw_data)
+  }
+}
+
+#' Filter Rows to a Recent Date Window
+#'
+#' Rows whose interview_date parses to a date within [date_start, date_end]
+#' (inclusive) are kept. Unparseable dates become NA and are dropped — an NA in
+#' the row index would leak an all-NA row into the result.
+#'
+#' @param df Data frame with an interview_date column
+#' @param date_start Date lower bound (inclusive)
+#' @param date_end Date upper bound (inclusive)
+#'
+#' @return The input filtered to the date window; adds interview_date_parsed
+#' @keywords internal
+filter_recent_dates <- function(df, date_start, date_end) {
+  if ("interview_date" %in% names(df)) {
+    df$interview_date_parsed <- as.Date(df$interview_date)
+    return(df[
+      !is.na(df$interview_date_parsed) &
+      df$interview_date_parsed >= date_start &
+      df$interview_date_parsed <= date_end,
+    ])
+  } else {
+    return(df)
+  }
+}
+
+#' Eligibility Mask for the Screening Report
+#'
+#' Logical vector over report rows: TRUE where every screening criterion holds.
+#' phq8score is parsed once: as.numeric() yields NA for empty/unparseable
+#' values, and an NA in the row index would leak an all-NA row into the result
+#' (and later crash data.frame() with "row names contain missing values"), so
+#' guard on the parsed value, not the raw string.
+#'
+#' @param recent_records Data frame of rows within the date window
+#'
+#' @return Logical vector, one entry per row of \code{recent_records}
+#' @keywords internal
+eligibility_mask <- function(recent_records) {
+  phq8score_num <- suppressWarnings(as.numeric(recent_records$phq8score))
+  return(
+    !is.na(recent_records$r01es_commute) & recent_records$r01es_commute == "1" &
+    !is.na(recent_records$r01es_austin) & recent_records$r01es_austin == "1" &
+    !is.na(recent_records$r01es_phone) & recent_records$r01es_phone == "1" &
+    !is.na(recent_records$r01es_computer) & recent_records$r01es_computer == "1" &
+    !is.na(recent_records$r01es_bpd) & recent_records$r01es_bpd == "0" &
+    !is.na(recent_records$r01es_psychotherapy) &
+      recent_records$r01es_psychotherapy == "0" &
+    !is.na(phq8score_num) & phq8score_num >= 17 &
+    !is.na(recent_records$r01es_druguse) & recent_records$r01es_druguse == "0" &
+    !is.na(recent_records$medchng) & recent_records$medchng == "0" &
+    !is.na(recent_records$r01es_medstop) & recent_records$r01es_medstop == "0" &
+    !is.na(recent_records$r01es_medstart) & recent_records$r01es_medstart == "0"
+  )
+}
+
+#' First Word of a Full Name
+#'
+#' Returns the first token before the first space; "Unknown" for empty values.
+#' The "row names contain missing values" crash is avoided by the caller via
+#' \code{USE.NAMES = FALSE} in the surrounding sapply.
+#'
+#' @param full_name Character name, possibly NA, NULL, or ""
+#'
+#' @return First word of the name, or "Unknown"
+#' @keywords internal
+first_name_of <- function(full_name) {
+  if (is.null(full_name) || is.na(full_name) || full_name == "") {
+    return("Unknown")
+  }
+  return(sub("\\s.*", "", full_name))
+}
 
 #' Get Weekly Screening Statistics
 #'
@@ -523,14 +669,7 @@ get_weekly_screening_stats <- function() {
       ))
     }
 
-    # Convert list to data frame
-    if (is.list(raw_data) && !is.data.frame(raw_data)) {
-      report_df <- do.call(rbind, lapply(raw_data, function(x) {
-        data.frame(x, stringsAsFactors = FALSE)
-      }))
-    } else {
-      report_df <- raw_data
-    }
+    report_df <- report_to_df(raw_data)
 
     if (is.null(report_df) || nrow(report_df) == 0) {
       return(data.frame(
@@ -545,39 +684,12 @@ get_weekly_screening_stats <- function() {
     seven_days_ago <- Sys.Date() - 7
     today <- Sys.Date()
 
-    # First filter by date if interview_date is available
-    if ("interview_date" %in% names(report_df)) {
-      # Parse interview_date and filter to past 7 days
-      report_df$interview_date_parsed <- as.Date(report_df$interview_date)
-      recent_records <- report_df[
-        !is.na(report_df$interview_date_parsed) &
-        report_df$interview_date_parsed >= seven_days_ago &
-        report_df$interview_date_parsed <= today,
-      ]
-    } else {
-      recent_records <- report_df
-    }
+    recent_records <- filter_recent_dates(report_df, seven_days_ago, today)
 
     total_screenings <- nrow(recent_records)
 
-    # Apply eligibility criteria to recent records.
-    # Parse phq8score once and guard on the parsed value: as.numeric() yields
-    # NA for empty/unparseable values, and an NA in the row index would insert
-    # an all-NA row that inflates eligible_count.
-    phq8score_num <- suppressWarnings(as.numeric(recent_records$phq8score))
-    eligible_participants <- recent_records[
-      !is.na(recent_records$r01es_commute) & recent_records$r01es_commute == "1" &
-      !is.na(recent_records$r01es_austin) & recent_records$r01es_austin == "1" &
-      !is.na(recent_records$r01es_phone) & recent_records$r01es_phone == "1" &
-      !is.na(recent_records$r01es_computer) & recent_records$r01es_computer == "1" &
-      !is.na(recent_records$r01es_bpd) & recent_records$r01es_bpd == "0" &
-      !is.na(recent_records$r01es_psychotherapy) & recent_records$r01es_psychotherapy == "0" &
-      !is.na(phq8score_num) & phq8score_num >= 17 &
-      !is.na(recent_records$r01es_druguse) & recent_records$r01es_druguse == "0" &
-      !is.na(recent_records$medchng) & recent_records$medchng == "0" &
-      !is.na(recent_records$r01es_medstop) & recent_records$r01es_medstop == "0" &
-      !is.na(recent_records$r01es_medstart) & recent_records$r01es_medstart == "0",
-    ]
+    # Apply eligibility criteria to recent records (see eligibility_mask).
+    eligible_participants <- recent_records[eligibility_mask(recent_records), ]
 
     eligible_count <- nrow(eligible_participants)
 
@@ -635,14 +747,7 @@ get_enrollment_stats <- function() {
       ))
     }
 
-    # Convert list to data frame
-    if (is.list(raw_data) && !is.data.frame(raw_data)) {
-      report_df <- do.call(rbind, lapply(raw_data, function(x) {
-        data.frame(x, stringsAsFactors = FALSE)
-      }))
-    } else {
-      report_df <- raw_data
-    }
+    report_df <- report_to_df(raw_data)
 
     if (is.null(report_df) || nrow(report_df) == 0) {
       return(list(
@@ -659,25 +764,7 @@ get_enrollment_stats <- function() {
     }
 
     # Check if GUID field exists (need to identify the actual field name)
-    # The global unique identifier field is "guid"
-    guid_field <- NULL
-    possible_guid_fields <- c("guid", "global_unique_identifier", "participant_guid",
-                              "unique_id", "study_id")
-
-    for (field in possible_guid_fields) {
-      if (field %in% names(report_df)) {
-        guid_field <- field
-        break
-      }
-    }
-
-    # If no GUID field found, check for any field with "guid" or "unique" in the name
-    if (is.null(guid_field)) {
-      guid_cols <- grep("guid|unique", names(report_df), ignore.case = TRUE, value = TRUE)
-      if (length(guid_cols) > 0) {
-        guid_field <- guid_cols[1]
-      }
-    }
+    guid_field <- detect_guid_field(report_df)
 
     # Group by record_id to handle longitudinal data
     # A participant is enrolled if ANY row has a GUID
@@ -694,55 +781,8 @@ get_enrollment_stats <- function() {
       # Get enrolled record_ids
       enrolled_record_ids <- record_has_guid$record_id[record_has_guid$has_guid]
 
-      # For each enrolled record, get their interview_date (from any row)
-      enrolled_df <- report_df[report_df$record_id %in% enrolled_record_ids, ]
-
-      # Get one row per record_id with the earliest non-NA interview_date
-      if ("interview_date" %in% names(enrolled_df)) {
-        # First, get records with valid interview_dates
-        enrolled_with_dates <- enrolled_df[
-          !is.na(enrolled_df$interview_date) &
-          enrolled_df$interview_date != "" &
-          enrolled_df$interview_date != "NA",
-        ]
-
-        if (nrow(enrolled_with_dates) > 0) {
-          # Parse dates first
-          enrolled_with_dates$parsed_interview_date <- as.Date(enrolled_with_dates$interview_date)
-
-          # Get the earliest date for each record_id
-          earliest_dates <- aggregate(
-            parsed_interview_date ~ record_id,
-            data = enrolled_with_dates,
-            FUN = min,
-            na.rm = TRUE
-          )
-
-          # For records without interview_date, add them with NA date
-          records_without_dates <- setdiff(enrolled_record_ids, earliest_dates$record_id)
-          if (length(records_without_dates) > 0) {
-            missing_dates <- data.frame(
-              record_id = records_without_dates,
-              parsed_interview_date = as.Date(NA)
-            )
-            enrolled_df <- rbind(earliest_dates, missing_dates)
-          } else {
-            enrolled_df <- earliest_dates
-          }
-        } else {
-          # No valid dates found, create df with NAs
-          enrolled_df <- data.frame(
-            record_id = enrolled_record_ids,
-            parsed_interview_date = as.Date(NA)
-          )
-        }
-      } else {
-        # interview_date field doesn't exist
-        enrolled_df <- data.frame(
-          record_id = enrolled_record_ids,
-          parsed_interview_date = as.Date(NA)
-        )
-      }
+      # One row per enrolled record with the earliest parsed interview_date
+      enrolled_df <- group_enrolled(report_df, enrolled_record_ids)
 
       total_enrolled <- length(enrolled_record_ids)
     } else if (!is.null(guid_field)) {
@@ -782,23 +822,10 @@ get_enrollment_stats <- function() {
         na.rm = TRUE
       )
 
-      # Create monthly breakdown
+      # Create monthly breakdown; month_year stays on enrolled_df so the
+      # available_fields debug field below reports it.
       enrolled_df$month_year <- format(enrolled_df$parsed_interview_date, "%Y-%m")
-
-      # Remove NA month_year entries
-      valid_months <- enrolled_df$month_year[!is.na(enrolled_df$month_year)]
-
-      if (length(valid_months) > 0) {
-        monthly_counts <- table(valid_months)
-
-        monthly_breakdown <- data.frame(
-          month = names(monthly_counts),
-          count = as.numeric(monthly_counts),
-          stringsAsFactors = FALSE
-        )
-        # Sort by month descending
-        monthly_breakdown <- monthly_breakdown[order(monthly_breakdown$month, decreasing = TRUE), ]
-      }
+      monthly_breakdown <- monthly_breakdown_counts(enrolled_df)
     } else {
       date_field <- NULL
     }
@@ -841,4 +868,126 @@ get_enrollment_stats <- function() {
       error = e$message
     ))
   })
+}
+#' Detect the Global Unique Identifier Field
+#'
+#' REDCap GUID columns vary by project. Prefer known field names in priority
+#' order, then fall back to the first column whose name contains "guid" or
+#' "unique" (case-insensitive).
+#'
+#' @param report_df Data frame of report rows
+#'
+#' @return Name of the GUID column, or NULL when none is found
+#' @keywords internal
+detect_guid_field <- function(report_df) {
+  known_names <- c("guid", "global_unique_identifier", "participant_guid",
+                   "unique_id", "study_id")
+  known_match <- intersect(known_names, names(report_df))
+  if (length(known_match) > 0) {
+    return(known_match[1])
+  }
+  fuzzy_match <- grep(
+    "guid|unique", names(report_df),
+    ignore.case = TRUE, value = TRUE
+  )
+  if (length(fuzzy_match) > 0) {
+    return(fuzzy_match[1])
+  }
+  return(NULL)
+}
+
+#' One Row per Enrolled Record with its Earliest Interview Date
+#'
+#' REDCap longitudinal data can repeat a record_id across rows. Keep the first
+#' (earliest) parsed interview_date per enrolled record; records with no valid
+#' date get NA so they still count as enrolled.
+#'
+#' @param report_df Data frame of report rows for enrolled record_ids
+#' @param enrolled_record_ids Character vector of record_ids with any GUID
+#'
+#' @return Data frame with columns record_id, parsed_interview_date
+#' @keywords internal
+group_enrolled <- function(report_df, enrolled_record_ids) {
+  enrolled_df <- report_df[report_df$record_id %in% enrolled_record_ids, ]
+
+  if (!"interview_date" %in% names(enrolled_df)) {
+    return(data.frame(
+      record_id = enrolled_record_ids,
+      parsed_interview_date = as.Date(NA)
+    ))
+  }
+
+  # First, get records with valid interview_dates
+  enrolled_with_dates <- enrolled_df[
+    !is.na(enrolled_df$interview_date) &
+      enrolled_df$interview_date != "" &
+      enrolled_df$interview_date != "NA",
+  ]
+
+  if (nrow(enrolled_with_dates) == 0) {
+    return(data.frame(
+      record_id = enrolled_record_ids,
+      parsed_interview_date = as.Date(NA)
+    ))
+  }
+
+  # Parse dates first
+  enrolled_with_dates$parsed_interview_date <-
+    as.Date(enrolled_with_dates$interview_date)
+
+  # Get the earliest date for each record_id
+  earliest_dates <- aggregate(
+    parsed_interview_date ~ record_id,
+    data = enrolled_with_dates,
+    FUN = min,
+    na.rm = TRUE
+  )
+
+  # For records without interview_date, add them with NA date
+  records_without_dates <- setdiff(
+    enrolled_record_ids,
+    earliest_dates$record_id
+  )
+  if (length(records_without_dates) > 0) {
+    missing_dates <- data.frame(
+      record_id = records_without_dates,
+      parsed_interview_date = as.Date(NA)
+    )
+    return(rbind(earliest_dates, missing_dates))
+  } else {
+    return(earliest_dates)
+  }
+}
+
+#' Enrollment Counts per Calendar Month
+#'
+#' Tallies enrolled records by their %Y-%m month label and sorts descending.
+#' The caller must attach the month_year column to \code{enrolled_df} first.
+#'
+#' @param enrolled_df Data frame with a month_year column (from
+#'   \code{get_enrollment_stats})
+#'
+#' @return Data frame with columns month, count, sorted descending
+#' @keywords internal
+monthly_breakdown_counts <- function(enrolled_df) {
+  # Remove NA month_year entries
+  valid_months <- enrolled_df$month_year[!is.na(enrolled_df$month_year)]
+
+  if (length(valid_months) == 0) {
+    return(data.frame(
+      month = character(0),
+      count = numeric(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  monthly_counts <- table(valid_months)
+
+  breakdown <- data.frame(
+    month = names(monthly_counts),
+    count = as.numeric(monthly_counts),
+    stringsAsFactors = FALSE
+  )
+  # Sort by month descending
+  return(breakdown[order(breakdown$month, decreasing = TRUE), ])
 }

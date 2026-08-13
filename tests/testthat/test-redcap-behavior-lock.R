@@ -98,8 +98,9 @@ test_that("call_redcap_api and get_redcap_records lock the record response value
   local_redcap_mocks()
   expected <- parse_fixture_body("api-94a9d8-POST.json")
 
-  # call_redcap_api("record") exercises the content param shadowing quirk
-  # (R/redcap_api.R L65) — locked as-is.
+  # call_redcap_api("record") — the local-variable shadowing of the `content`
+  # parameter (resp_body_json assigned back into `content`) was resolved in
+  # AC-3.5 via the parse_response helper; output is identical.
   direct <- httptest2::with_mock_api({ call_redcap_api("record") })
   expect_equal(direct, expected)
 
@@ -158,10 +159,12 @@ test_that("get_survey_completions locks the long-format reshape (2 fixtures, exa
   expect_named(result, c("record_id", "survey_instrument", "survey_timestamp", "survey_complete"))
 
   # Row order pinned as-is: instrument order follows metadata field order
-  # (unique() over grepl'd fields), and do.call(rbind, result_list) at
-  # R/redcap_api.R L284 keeps that order. P203 (all "" timestamps/completes)
-  # is filtered by the L271-276 activity guard. %||% (L502) is exercised by
-  # the metadata list->data.frame conversion.
+  # (unique() over grepl'd fields), and reshape_long() keeps that order (rbind
+  # of per-instrument rows). P203 (all "" timestamps/completes) is filtered by
+  # the activity_guard() helper. %||% is exercised by the metadata list->data.frame
+  # conversion (metadata_to_df) — honest note: the fixture metadata has zero
+  # NULL fields, so %||%'s right branch is untested by this lock; the guard is
+  # retained for real metadata where REDCap can omit fields.
   expect_identical(result$record_id, c("P201", "P202"))
   expect_identical(result$survey_instrument, c("baseline", "followup"))
 })
@@ -210,10 +213,10 @@ test_that("get_eligible_participants locks eligibility semantics incl. all \"\" 
 
   # "" empty-string fidelity at the exact fields (all LOCKING-CURRENT — the
   # AC-3.9 sweep will decide whether to change any of these):
-  #   phq8score "" (parse-once guard L446)       -> P302 excluded, no NA row
-  #   r01es_commute "" (sibling raw-guard L440)  -> P303 excluded
-  #   interview_date "" (date filter L421)       -> P306 excluded
-  #   r01es_name "" -> "Unknown" (L470-477)      -> P305 first_name "Unknown"
+  #   phq8score "" (eligibility_mask parse-once guard)  -> P302 excluded, no NA row
+  #   r01es_commute "" (eligibility_mask raw-guard)      -> P303 excluded
+  #   interview_date "" (filter_recent_dates)            -> P306 excluded
+  #   r01es_name "" -> "Unknown" (first_name_of)         -> P305 first_name "Unknown"
   expect_identical(nrow(result), 3L)
   expect_identical(result$first_name[3], "Unknown")          # r01es_name ""
   expect_false("Bob" %in% result$first_name)                 # phq8score ""
@@ -239,11 +242,11 @@ test_that("get_weekly_screening_stats locks 7-day counts incl. \"\" guards", {
   expect_named(result, c("total_screenings", "eligible_count", "hispanic_count"))
 
   # LOCKING-CURRENT:
-  #   phq8score "" (parse-once guard L575)       -> P302 not eligible
-  #   r01es_commute "" (sibling raw-guard L569)  -> P303 not eligible
-  #   r01es_hispanic "" (L587-588, not counted)  -> P304 eligible but hispanic
-  #                                                 not tallied (count stays 1)
-  #   interview_date "" (L551)                   -> P306 not in the 7-day window
+  #   phq8score "" (eligibility_mask parse-once guard)  -> P302 not eligible
+  #   r01es_commute "" (eligibility_mask raw-guard)     -> P303 not eligible
+  #   r01es_hispanic "" (not counted)                   -> P304 eligible but hispanic
+  #                                                       not tallied (count stays 1)
+  #   interview_date "" (filter_recent_dates)           -> P306 not in the 7-day window
 })
 
 # ---------------------------------------------------------------------------
@@ -266,19 +269,22 @@ test_that("get_enrollment_stats locks enrollment semantics incl. guid \"\" not e
   result <- httptest2::with_mock_api({ get_enrollment_stats() })
 
   # P401 (guid, recent) and P402 (guid, old) enrolled; P403 (guid "" on every
-  # row) NOT enrolled (L690 guard); P404 enrolled via ANY-row guid across its
-  # two longitudinal rows; P405 enrolled but has no valid interview_date.
+  # row) NOT enrolled (record_has_guid any-GUID guard); P404 enrolled via
+  # ANY-row guid across its two longitudinal rows; P405 enrolled but has no
+  # valid interview_date.
   expect_identical(result$total_enrolled, 4L)
   expect_identical(result$weekly_enrolled, 2L)    # P401 (2026-08-11), P404 (2026-08-10)
-  expect_identical(result$current_month, "August 2026")  # format(Sys.Date(), "%B %Y") L763
+  expect_identical(result$current_month, "August 2026")  # format(Sys.Date(), "%B %Y")
   expect_identical(result$guid_field, "guid")
   expect_identical(result$date_field, "interview_date")
-  # L786 appends month_year to enrolled_df before L826 names it — locked as-is.
+  # get_enrollment_stats appends month_year to enrolled_df before building
+  # available_fields — locked as-is.
   expect_identical(result$available_fields, "record_id, parsed_interview_date, month_year")
   expect_identical(result$valid_dates_count, 3L)
   expect_identical(result$date_range, "2026-06-01 to 2026-08-11")
-  # Row order pinned (L800 sorts month descending); the row names are a sort
-  # artifact — strip them, the value ORDER is what the lock pins.
+  # Row order pinned (monthly_breakdown_counts sorts month descending); the
+  # row names are a sort artifact — strip them, the value ORDER is what the
+  # lock pins.
   actual_breakdown <- result$monthly_breakdown
   rownames(actual_breakdown) <- NULL
   expected_breakdown <- data.frame(
@@ -333,14 +339,14 @@ test_that("HTTP-error fixtures lock the stats fns' tryCatch error frames", {
   local_redcap_mocks(mock_roots = testthat::test_path("fixtures", "redcap-errors"))
   with_fixed_clock("2026-08-13 12:00:00", tz = "UTC")
 
-  # get_eligible_participants error frame (R/redcap_api.R L491-498)
+  # get_eligible_participants error frame (tryCatch error handler)
   eligible <- httptest2::with_mock_api({ get_eligible_participants() })
   expect_named(eligible, c("Status", "Total_Records", "Eligible_Count"))
   expect_identical(eligible$Total_Records, 0)
   expect_identical(eligible$Eligible_Count, 0)
   expect_identical(eligible$Status, "Error: REDCap API call failed: HTTP 400 Bad Request.")
 
-  # get_weekly_screening_stats error frame (L599-607)
+  # get_weekly_screening_stats error frame
   weekly <- httptest2::with_mock_api({ get_weekly_screening_stats() })
   expect_named(weekly, c("total_screenings", "eligible_count", "hispanic_count", "error_message"))
   expect_identical(weekly$total_screenings, 0)
@@ -348,7 +354,7 @@ test_that("HTTP-error fixtures lock the stats fns' tryCatch error frames", {
   expect_identical(weekly$hispanic_count, 0)
   expect_identical(weekly$error_message, "REDCap API call failed: HTTP 400 Bad Request.")
 
-  # get_enrollment_stats error frame (L831-843)
+  # get_enrollment_stats error frame
   enrollment <- httptest2::with_mock_api({ get_enrollment_stats() })
   expect_identical(enrollment$total_enrolled, 0)
   expect_identical(enrollment$weekly_enrolled, 0)
