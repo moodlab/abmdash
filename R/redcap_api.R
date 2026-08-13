@@ -485,14 +485,7 @@ get_eligible_participants <- function() {
       ))
     }
     
-    # Convert list to data frame
-    if (is.list(raw_data) && !is.data.frame(raw_data)) {
-      report_df <- do.call(rbind, lapply(raw_data, function(x) {
-        data.frame(x, stringsAsFactors = FALSE)
-      }))
-    } else {
-      report_df <- raw_data
-    }
+    report_df <- report_to_df(raw_data)
     
     if (is.null(report_df) || nrow(report_df) == 0) {
       return(data.frame(
@@ -509,40 +502,12 @@ get_eligible_participants <- function() {
     one_month_ago <- Sys.Date() - 30
     today <- Sys.Date()
     
-    # First filter by date if interview_date is available
-    if ("interview_date" %in% names(report_df)) {
-      # Parse interview_date and filter to past month
-      report_df$interview_date_parsed <- as.Date(report_df$interview_date)
-      recent_records <- report_df[
-        !is.na(report_df$interview_date_parsed) &
-        report_df$interview_date_parsed >= one_month_ago &
-        report_df$interview_date_parsed <= today,
-      ]
-    } else {
-      recent_records <- report_df
-    }
+    recent_records <- filter_recent_dates(report_df, one_month_ago, today)
     
     recent_count <- nrow(recent_records)
     
-    # Apply eligibility criteria to recent records.
-    # Parse phq8score once: as.numeric() yields NA for empty/unparseable
-    # values, and an NA in the row index would leak an all-NA row into the
-    # result (and later crash data.frame() with "row names contain missing
-    # values"), so guard on the parsed value, not the raw string.
-    phq8score_num <- suppressWarnings(as.numeric(recent_records$phq8score))
-    eligible_participants <- recent_records[
-      !is.na(recent_records$r01es_commute) & recent_records$r01es_commute == "1" &
-      !is.na(recent_records$r01es_austin) & recent_records$r01es_austin == "1" &
-      !is.na(recent_records$r01es_phone) & recent_records$r01es_phone == "1" &
-      !is.na(recent_records$r01es_computer) & recent_records$r01es_computer == "1" &
-      !is.na(recent_records$r01es_bpd) & recent_records$r01es_bpd == "0" &
-      !is.na(recent_records$r01es_psychotherapy) & recent_records$r01es_psychotherapy == "0" &
-      !is.na(phq8score_num) & phq8score_num >= 17 &
-      !is.na(recent_records$r01es_druguse) & recent_records$r01es_druguse == "0" &
-      !is.na(recent_records$medchng) & recent_records$medchng == "0" &
-      !is.na(recent_records$r01es_medstop) & recent_records$r01es_medstop == "0" &
-      !is.na(recent_records$r01es_medstart) & recent_records$r01es_medstart == "0",
-    ]
+    # Apply eligibility criteria to recent records (see eligibility_mask).
+    eligible_participants <- recent_records[eligibility_mask(recent_records), ]
 
     eligible_count <- nrow(eligible_participants)
 
@@ -561,14 +526,7 @@ get_eligible_participants <- function() {
     # USE.NAMES = FALSE: sapply would otherwise name the result with the full
     # name values; an NA name value is then promoted to a row name by
     # data.frame() below and raises "row names contain missing values".
-    first_names <- sapply(eligible_participants$r01es_name, function(full_name) {
-      if (is.null(full_name) || is.na(full_name) || full_name == "") {
-        return("Unknown")
-      }
-      # Get the first word (before first space)
-      first_word <- sub("\\s.*", "", full_name)
-      return(first_word)
-    }, USE.NAMES = FALSE)
+    first_names <- sapply(eligible_participants$r01es_name, first_name_of, USE.NAMES = FALSE)
 
     # Return the specific columns for eligible participants
     result <- data.frame(
@@ -594,6 +552,94 @@ get_eligible_participants <- function() {
 
 # Helper function for null coalescing
 `%||%` <- function(x, y) if (is.null(x)) y else x
+
+#' Flatten Report Rows into a Data Frame
+#'
+#' REDCap report responses come back as a list of row lists; convert to a data
+#' frame when needed. Already-data-frame responses pass through unchanged.
+#'
+#' @param raw_data List of report row lists, or a data frame
+#'
+#' @return Data frame with one row per report record
+#' @keywords internal
+report_to_df <- function(raw_data) {
+  if (is.list(raw_data) && !is.data.frame(raw_data)) {
+    do.call(rbind, lapply(raw_data, function(x) {
+      data.frame(x, stringsAsFactors = FALSE)
+    }))
+  } else {
+    raw_data
+  }
+}
+
+#' Filter Rows to a Recent Date Window
+#'
+#' Rows whose interview_date parses to a date within [date_start, date_end]
+#' (inclusive) are kept. Unparseable dates become NA and are dropped — an NA in
+#' the row index would leak an all-NA row into the result.
+#'
+#' @param df Data frame with an interview_date column
+#' @param date_start Date lower bound (inclusive)
+#' @param date_end Date upper bound (inclusive)
+#'
+#' @return The input filtered to the date window; adds interview_date_parsed
+#' @keywords internal
+filter_recent_dates <- function(df, date_start, date_end) {
+  if ("interview_date" %in% names(df)) {
+    df$interview_date_parsed <- as.Date(df$interview_date)
+    df[
+      !is.na(df$interview_date_parsed) &
+      df$interview_date_parsed >= date_start &
+      df$interview_date_parsed <= date_end,
+    ]
+  } else {
+    df
+  }
+}
+
+#' Eligibility Mask for the Screening Report
+#'
+#' Logical vector over report rows: TRUE where every screening criterion holds.
+#' phq8score is parsed once: as.numeric() yields NA for empty/unparseable
+#' values, and an NA in the row index would leak an all-NA row into the result
+#' (and later crash data.frame() with "row names contain missing values"), so
+#' guard on the parsed value, not the raw string.
+#'
+#' @param recent_records Data frame of rows within the date window
+#'
+#' @return Logical vector, one entry per row of \code{recent_records}
+#' @keywords internal
+eligibility_mask <- function(recent_records) {
+  phq8score_num <- suppressWarnings(as.numeric(recent_records$phq8score))
+  !is.na(recent_records$r01es_commute) & recent_records$r01es_commute == "1" &
+  !is.na(recent_records$r01es_austin) & recent_records$r01es_austin == "1" &
+  !is.na(recent_records$r01es_phone) & recent_records$r01es_phone == "1" &
+  !is.na(recent_records$r01es_computer) & recent_records$r01es_computer == "1" &
+  !is.na(recent_records$r01es_bpd) & recent_records$r01es_bpd == "0" &
+  !is.na(recent_records$r01es_psychotherapy) & recent_records$r01es_psychotherapy == "0" &
+  !is.na(phq8score_num) & phq8score_num >= 17 &
+  !is.na(recent_records$r01es_druguse) & recent_records$r01es_druguse == "0" &
+  !is.na(recent_records$medchng) & recent_records$medchng == "0" &
+  !is.na(recent_records$r01es_medstop) & recent_records$r01es_medstop == "0" &
+  !is.na(recent_records$r01es_medstart) & recent_records$r01es_medstart == "0"
+}
+
+#' First Word of a Full Name
+#'
+#' Returns the first token before the first space; "Unknown" for empty values.
+#' The "row names contain missing values" crash is avoided by the caller via
+#' \code{USE.NAMES = FALSE} in the surrounding sapply.
+#'
+#' @param full_name Character name, possibly NA, NULL, or ""
+#'
+#' @return First word of the name, or "Unknown"
+#' @keywords internal
+first_name_of <- function(full_name) {
+  if (is.null(full_name) || is.na(full_name) || full_name == "") {
+    return("Unknown")
+  }
+  sub("\\s.*", "", full_name)
+}
 
 #' Get Weekly Screening Statistics
 #'
