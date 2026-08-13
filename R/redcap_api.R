@@ -53,7 +53,7 @@ call_redcap_api <- function(content = "record", format = "json", ...) {
       httr2::req_body_form(!!!body_params) |>
       httr2::req_perform()
     
-    parse_response(response, format)
+    return(parse_response(response, format))
     
   }, error = function(e) {
     stop("REDCap API call failed: ", e$message)
