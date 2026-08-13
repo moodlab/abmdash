@@ -57,17 +57,7 @@ abs_login <- function(
 
   # Step 1: Fetch login page to get Livewire snapshot and CSRF token
   message("Fetching login page...")
-  login_page <- base_req |>
-    httr2::req_url_path(login_path) |>
-    httr2::req_error(is_error = function(resp) FALSE) |>
-    httr2::req_perform()
-
-  status <- httr2::resp_status(login_page)
-  if (status >= 400) {
-    stop("Login page returned error status: ", status)
-  }
-
-  page_content <- httr2::resp_body_string(login_page)
+  page_content <- fetch_login_page(base_req, login_path)
 
   # Extract Livewire snapshot (contains component state)
   snapshot_json <- extract_livewire_snapshot(page_content)
@@ -90,7 +80,62 @@ abs_login <- function(
   password <- gsub('^["\']|["\']$', '', password)
 
   message("Submitting credentials via Livewire...")
+  auth <- submit_credentials(base_req, csrf_token, snapshot_json, username, password)
 
+  # Parse Livewire response — successful login has redirect effect
+  auth_result <- auth$result
+  auth_status <- auth$status
+  auth_body <- auth$body
+
+  if (!detect_redirect(auth_result)) {
+    # Build diagnostic info for the error message (shows on dashboard)
+    diag_msg <- build_login_diagnostics(auth_result, auth_status, auth_body)
+    stop("Login failed: no redirect in response. ", diag_msg, call. = FALSE)
+  }
+
+  return(base_req)
+}
+
+
+#' Fetch ABS Login Page
+#'
+#' Performs the GET request for the login page and returns its HTML body.
+#'
+#' @param base_req An httr2 request object (see \code{\link{abs_login}}).
+#' @param login_path Character string with the login path.
+#'
+#' @return Character string with the login page HTML.
+#' @keywords internal
+fetch_login_page <- function(base_req, login_path) {
+  login_page <- base_req |>
+    httr2::req_url_path(login_path) |>
+    httr2::req_error(is_error = function(resp) FALSE) |>
+    httr2::req_perform()
+
+  status <- httr2::resp_status(login_page)
+  if (status >= 400) {
+    stop("Login page returned error status: ", status)
+  }
+
+  return(httr2::resp_body_string(login_page))
+}
+
+
+#' Submit Livewire Login Credentials
+#'
+#' POSTs the Livewire update payload with the given credentials to the
+#' authentication endpoint and parses the response.
+#'
+#' @param base_req An httr2 request object (see \code{\link{abs_login}}).
+#' @param csrf_token Character string with the CSRF token.
+#' @param snapshot_json Character string with the Livewire snapshot JSON.
+#' @param username Character string with the username.
+#' @param password Character string with the password.
+#'
+#' @return List with elements \code{status} (HTTP status), \code{body} (raw
+#'   response body), and \code{result} (parsed Livewire response).
+#' @keywords internal
+submit_credentials <- function(base_req, csrf_token, snapshot_json, username, password) {
   payload <- list(
     `_token` = jsonlite::unbox(csrf_token),
     components = list(
@@ -128,17 +173,10 @@ abs_login <- function(
     stop("Livewire authentication request failed with status: ", auth_status)
   }
 
-  # Parse Livewire response — successful login has redirect effect
   auth_body <- httr2::resp_body_string(auth_response)
   auth_result <- jsonlite::fromJSON(auth_body, simplifyVector = FALSE)
 
-  if (!detect_redirect(auth_result)) {
-    # Build diagnostic info for the error message (shows on dashboard)
-    diag_msg <- build_login_diagnostics(auth_result, auth_status, auth_body)
-    stop("Login failed: no redirect in response. ", diag_msg, call. = FALSE)
-  }
-
-  return(base_req)
+  return(list(status = auth_status, body = auth_body, result = auth_result))
 }
 
 
@@ -394,6 +432,48 @@ download_abs_csv <- function(
   message("Fetching tests page...")
 
   # Get the tests page to obtain the Livewire component snapshot
+  tests_body <- fetch_tests_page(session, tests_path)
+
+  # Find the list-tests Livewire component snapshot
+  list_tests_snapshot <- find_list_tests_snapshot(tests_body)
+  if (is.null(list_tests_snapshot)) {
+    stop("Could not find list-tests component on tests page")
+  }
+
+  # Extract CSRF token from the tests page
+  csrf_token <- extract_csrf_token(tests_body)
+  if (is.null(csrf_token)) {
+    stop("No CSRF token found on tests page")
+  }
+
+  # Call the downloadCompleteCsv Livewire action
+  message("Downloading CSV via Livewire action...")
+  download_body <- call_download_action(session, list_tests_snapshot, csrf_token)
+
+  # Parse Livewire response and extract base64-encoded CSV from download effect
+  csv_content <- extract_csv_content(download_body)
+  if (is.null(csv_content)) {
+    stop("No CSV download content in Livewire response")
+  }
+
+  # Parse CSV
+  data <- parse_csv(csv_content, save_path)
+
+  return(data)
+}
+
+
+#' Fetch ABS Tests Page
+#'
+#' Performs the GET request for the tests page and returns its HTML body,
+#' stopping if the page is unavailable or the session is not authenticated.
+#'
+#' @param session An httr2 request object returned from abs_login()
+#' @param tests_path Character string with the tests page path.
+#'
+#' @return Character string with the tests page HTML.
+#' @keywords internal
+fetch_tests_page <- function(session, tests_path) {
   tests_resp <- session |>
     httr2::req_url_path(tests_path) |>
     httr2::req_error(is_error = function(resp) FALSE) |>
@@ -410,22 +490,22 @@ download_abs_csv <- function(
     stop("Failed to load tests page. Status: ", tests_status)
   }
 
-  tests_body <- httr2::resp_body_string(tests_resp)
+  return(httr2::resp_body_string(tests_resp))
+}
 
-  # Find the list-tests Livewire component snapshot
-  list_tests_snapshot <- find_list_tests_snapshot(tests_body)
-  if (is.null(list_tests_snapshot)) {
-    stop("Could not find list-tests component on tests page")
-  }
 
-  # Extract CSRF token from the tests page
-  csrf_token <- extract_csrf_token(tests_body)
-  if (is.null(csrf_token)) {
-    stop("No CSRF token found on tests page")
-  }
-
-  # Call the downloadCompleteCsv Livewire action
-  message("Downloading CSV via Livewire action...")
+#' Call the Download CSV Livewire Action
+#'
+#' POSTs the downloadCompleteCsv Livewire action and returns the raw response
+#' body.
+#'
+#' @param session An httr2 request object returned from abs_login()
+#' @param list_tests_snapshot Character string with the list-tests snapshot JSON.
+#' @param csrf_token Character string with the CSRF token.
+#'
+#' @return Character string with the raw Livewire download response body.
+#' @keywords internal
+call_download_action <- function(session, list_tests_snapshot, csrf_token) {
   payload <- list(
     `_token` = jsonlite::unbox(csrf_token),
     components = list(
@@ -463,17 +543,7 @@ download_abs_csv <- function(
     stop("CSV download request failed with status: ", httr2::resp_status(download_resp))
   }
 
-  # Parse Livewire response and extract base64-encoded CSV from download effect
-  download_body <- httr2::resp_body_string(download_resp)
-  csv_content <- extract_csv_content(download_body)
-  if (is.null(csv_content)) {
-    stop("No CSV download content in Livewire response")
-  }
-
-  # Parse CSV
-  data <- parse_csv(csv_content, save_path)
-
-  return(data)
+  return(httr2::resp_body_string(download_resp))
 }
 
 
