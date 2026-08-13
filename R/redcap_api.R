@@ -206,14 +206,7 @@ get_survey_completions <- function(surveys = NULL, records = NULL, format = "jso
   
   # Convert to data frame if it's a list
   if (is.list(metadata) && !is.data.frame(metadata)) {
-    metadata_df <- do.call(rbind, lapply(metadata, function(x) {
-      data.frame(
-        field_name = x$field_name %||% "",
-        form_name = x$form_name %||% "",
-        field_type = x$field_type %||% "",
-        stringsAsFactors = FALSE
-      )
-    }))
+    metadata_df <- metadata_to_df(metadata)
   } else {
     metadata_df <- metadata
   }
@@ -266,15 +259,7 @@ get_survey_completions <- function(surveys = NULL, records = NULL, format = "jso
   
   # Convert to data frame if needed
   if (is.list(survey_data) && !is.data.frame(survey_data)) {
-    survey_df <- do.call(rbind, lapply(survey_data, function(x) {
-      # Ensure all expected fields exist
-      for (field in all_fields) {
-        if (!field %in% names(x)) {
-          x[[field]] <- ""
-        }
-      }
-      data.frame(x, stringsAsFactors = FALSE)
-    }))
+    survey_df <- list_to_df(survey_data, all_fields)
   } else {
     survey_df <- survey_data
   }
@@ -321,6 +306,59 @@ get_survey_completions <- function(surveys = NULL, records = NULL, format = "jso
       stringsAsFactors = FALSE
     ))
   }
+}
+
+#' Flatten REDCap Metadata into a Data Frame
+#'
+#' REDCap metadata is returned as a list of field dictionaries. This flattens
+#' each entry to the columns this module reads, defaulting missing values to ""
+#' via the null-coalescing helper \code{\%||\%}.
+#'
+#' @param metadata List of metadata field entries
+#'
+#' @return Data frame with columns field_name, form_name, field_type
+#' @keywords internal
+metadata_to_df <- function(metadata) {
+  do.call(rbind, lapply(metadata, function(x) {
+    data.frame(
+      field_name = x$field_name %||% "",
+      form_name = x$form_name %||% "",
+      field_type = x$field_type %||% "",
+      stringsAsFactors = FALSE
+    )
+  }))
+}
+
+#' Ensure a Survey Record Carries Every Expected Field
+#'
+#' REDCap omits unset fields from JSON responses. Fill any missing expected
+#' field with "" so the row converts cleanly to a data frame.
+#'
+#' @param record Named list for one survey record
+#' @param all_fields Character vector of field names that must exist
+#'
+#' @return The record with every \code{all_fields} present
+#' @keywords internal
+ensure_fields <- function(record, all_fields) {
+  for (field in all_fields) {
+    if (!field %in% names(record)) {
+      record[[field]] <- ""
+    }
+  }
+  record
+}
+
+#' Flatten Survey Records into a Data Frame
+#'
+#' @param rows List of survey record lists from \code{get_redcap_records()}
+#' @param all_fields Character vector of expected field names
+#'
+#' @return Data frame with one row per record
+#' @keywords internal
+list_to_df <- function(rows, all_fields) {
+  do.call(rbind, lapply(rows, function(row) {
+    data.frame(ensure_fields(row, all_fields), stringsAsFactors = FALSE)
+  }))
 }
 
 #' Get REDCap Logs
