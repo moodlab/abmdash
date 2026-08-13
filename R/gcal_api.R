@@ -270,9 +270,9 @@ get_combined_calendar_events <- function(calendar_ids,
                                           time_max = NULL,
                                           max_results = 100) {
 
-  all_items <- list()
-
-  for (cal_id in calendar_ids) {
+  # Fetch one calendar's items, swallowing per-calendar errors: a failing
+  # calendar drops its events but does not abort the merge.
+  fetch_calendar_items <- function(cal_id) {
     tryCatch({
       result <- get_calendar_events(
         calendar_id = cal_id,
@@ -280,13 +280,17 @@ get_combined_calendar_events <- function(calendar_ids,
         time_max = time_max,
         max_results = max_results
       )
-      if (!is.null(result$items)) {
-        all_items <- c(all_items, result$items)
-      }
+      if (is.null(result$items)) NULL else result$items
     }, error = function(e) {
       message("Warning: failed to fetch calendar ", cal_id, ": ", e$message)
+      NULL
     })
   }
 
-  list(items = all_items)
+  # Preserve calendar_ids iteration order, fixture order within each calendar,
+  # and duplicates — NO sorting, NO deduplication (locked by
+  # test-combined-calendar.R). unlist(recursive = FALSE) flattens exactly one
+  # level: NULL (error/empty calendars) drops out and event lists concatenate
+  # in order; unname() keeps the merged items unnamed as before.
+  list(items = unname(unlist(lapply(calendar_ids, fetch_calendar_items), recursive = FALSE)))
 }
