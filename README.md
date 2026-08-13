@@ -106,6 +106,22 @@ Otherwise, the pre-commit hooks are ususally pretty explicit about what has spec
 
 If you really get stuck, you can file an issue with the Github repo with a bug report, including the full text of the pre-commit output + any other necessary context.
 
+### Set up the codegraph index for agent navigation
+
+We use [codegraph](https://github.com/paul-gauthier/codegraph) to build a symbol-level index of this repo so coding agents get accurate codebase navigation. The index is a machine-local artifact: `.codegraph/` is gitignored and is **never committed** to the repo.
+
+To initialize (or regenerate) the index, run from the repo root:
+
+```
+codegraph init
+```
+
+Regenerate the index whenever it goes stale:
+
+- after structural changes to `R/` files (new files, moved/renamed functions)
+- before starting an agent session that needs codebase navigation
+- any time `codegraph status` reports the index is out of date
+
 ### Create an issue with a description of what you're doing
 
 In the Github [repo](https://github.com/moodlab/abmdash/issues) create a new issue with a description of what your code changes will do. If you're not sure where to start with the description you can look at previous issues.
