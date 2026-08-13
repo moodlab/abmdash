@@ -816,23 +816,10 @@ get_enrollment_stats <- function() {
         na.rm = TRUE
       )
 
-      # Create monthly breakdown
+      # Create monthly breakdown; month_year stays on enrolled_df so the
+      # available_fields debug field below reports it.
       enrolled_df$month_year <- format(enrolled_df$parsed_interview_date, "%Y-%m")
-
-      # Remove NA month_year entries
-      valid_months <- enrolled_df$month_year[!is.na(enrolled_df$month_year)]
-
-      if (length(valid_months) > 0) {
-        monthly_counts <- table(valid_months)
-
-        monthly_breakdown <- data.frame(
-          month = names(monthly_counts),
-          count = as.numeric(monthly_counts),
-          stringsAsFactors = FALSE
-        )
-        # Sort by month descending
-        monthly_breakdown <- monthly_breakdown[order(monthly_breakdown$month, decreasing = TRUE), ]
-      }
+      monthly_breakdown <- monthly_breakdown_counts(enrolled_df)
     } else {
       date_field <- NULL
     }
@@ -957,4 +944,37 @@ group_enrolled <- function(report_df, enrolled_record_ids) {
   } else {
     earliest_dates
   }
+}
+
+#' Enrollment Counts per Calendar Month
+#'
+#' Tallies enrolled records by their %Y-%m month label and sorts descending.
+#' The caller must attach the month_year column to \code{enrolled_df} first.
+#'
+#' @param enrolled_df Data frame with a month_year column (from
+#'   \code{get_enrollment_stats})
+#'
+#' @return Data frame with columns month, count, sorted descending
+#' @keywords internal
+monthly_breakdown_counts <- function(enrolled_df) {
+  # Remove NA month_year entries
+  valid_months <- enrolled_df$month_year[!is.na(enrolled_df$month_year)]
+
+  if (length(valid_months) == 0) {
+    return(data.frame(
+      month = character(0),
+      count = numeric(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  monthly_counts <- table(valid_months)
+
+  breakdown <- data.frame(
+    month = names(monthly_counts),
+    count = as.numeric(monthly_counts),
+    stringsAsFactors = FALSE
+  )
+  # Sort by month descending
+  breakdown[order(breakdown$month, decreasing = TRUE), ]
 }
