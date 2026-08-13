@@ -225,13 +225,7 @@ get_survey_completions <- function(surveys = NULL, records = NULL, format = "jso
   
   if (length(instrument_names) == 0) {
     warning("No survey instruments found")
-    return(data.frame(
-      record_id = character(0),
-      survey_instrument = character(0),
-      survey_timestamp = character(0),
-      survey_complete = character(0),
-      stringsAsFactors = FALSE
-    ))
+    return(empty_survey_frame())
   }
   
   # Build field list for timestamp and complete fields
@@ -248,13 +242,7 @@ get_survey_completions <- function(surveys = NULL, records = NULL, format = "jso
   
   if (is.null(survey_data) || length(survey_data) == 0) {
     warning("No survey data retrieved")
-    return(data.frame(
-      record_id = character(0),
-      survey_instrument = character(0),
-      survey_timestamp = character(0),
-      survey_complete = character(0),
-      stringsAsFactors = FALSE
-    ))
+    return(empty_survey_frame())
   }
   
   # Convert to data frame if needed
@@ -265,47 +253,7 @@ get_survey_completions <- function(surveys = NULL, records = NULL, format = "jso
   }
   
   # Reshape from wide to long format
-  result_list <- list()
-  
-  for (instrument in instrument_names) {
-    timestamp_field <- paste0(instrument, "_timestamp")
-    complete_field <- paste0(instrument, "_complete")
-    
-    if (timestamp_field %in% names(survey_df) && complete_field %in% names(survey_df)) {
-      instrument_data <- data.frame(
-        record_id = survey_df$record_id,
-        survey_instrument = instrument,
-        survey_timestamp = survey_df[[timestamp_field]],
-        survey_complete = survey_df[[complete_field]],
-        stringsAsFactors = FALSE
-      )
-      
-      # Only include rows where there's some survey activity
-      instrument_data <- instrument_data[
-        !is.na(instrument_data$survey_timestamp) & 
-        instrument_data$survey_timestamp != "" |
-        !is.na(instrument_data$survey_complete) & 
-        instrument_data$survey_complete != "", 
-      ]
-      
-      result_list[[instrument]] <- instrument_data
-    }
-  }
-  
-  # Combine all instruments
-  if (length(result_list) > 0) {
-    final_result <- do.call(rbind, result_list)
-    rownames(final_result) <- NULL
-    return(final_result)
-  } else {
-    return(data.frame(
-      record_id = character(0),
-      survey_instrument = character(0),
-      survey_timestamp = character(0),
-      survey_complete = character(0),
-      stringsAsFactors = FALSE
-    ))
-  }
+  reshape_long(survey_df, instrument_names)
 }
 
 #' Flatten REDCap Metadata into a Data Frame
@@ -359,6 +307,86 @@ list_to_df <- function(rows, all_fields) {
   do.call(rbind, lapply(rows, function(row) {
     data.frame(ensure_fields(row, all_fields), stringsAsFactors = FALSE)
   }))
+}
+
+#' Empty Survey Result
+#'
+#' The zero-row frame every no-data branch of get_survey_completions returns.
+#'
+#' @return Data frame with the survey result columns and zero rows
+#' @keywords internal
+empty_survey_frame <- function() {
+  data.frame(
+    record_id = character(0),
+    survey_instrument = character(0),
+    survey_timestamp = character(0),
+    survey_complete = character(0),
+    stringsAsFactors = FALSE
+  )
+}
+
+#' Keep Rows with Any Survey Activity
+#'
+#' REDCap reports "" for unset values; keep a row only if its timestamp or
+#' completion field is set. Operator precedence: \code{&} binds tighter than
+#' \code{|}, so the guard means timestamp-set OR complete-set.
+#'
+#' @param instrument_data Data frame for one instrument
+#'
+#' @return The input filtered to rows with any survey activity
+#' @keywords internal
+activity_guard <- function(instrument_data) {
+  instrument_data[
+    !is.na(instrument_data$survey_timestamp) &
+    instrument_data$survey_timestamp != "" |
+    !is.na(instrument_data$survey_complete) &
+    instrument_data$survey_complete != "",
+  ]
+}
+
+#' Reshape Survey Data from Wide to Long
+#'
+#' One row per instrument per record. Instruments without matching timestamp
+#' and complete columns in the data are skipped; the activity guard drops rows
+#' with no survey activity.
+#'
+#' @param survey_df Wide survey data frame (record_id plus per-instrument
+#'   timestamp and complete columns)
+#' @param instrument_names Character vector of instrument names
+#'
+#' @return Long data frame with columns record_id, survey_instrument,
+#'   survey_timestamp, survey_complete
+#' @keywords internal
+reshape_long <- function(survey_df, instrument_names) {
+  instrument_rows <- list()
+  
+  for (instrument in instrument_names) {
+    timestamp_field <- paste0(instrument, "_timestamp")
+    complete_field <- paste0(instrument, "_complete")
+    
+    if (timestamp_field %in% names(survey_df) && complete_field %in% names(survey_df)) {
+      instrument_data <- data.frame(
+        record_id = survey_df$record_id,
+        survey_instrument = instrument,
+        survey_timestamp = survey_df[[timestamp_field]],
+        survey_complete = survey_df[[complete_field]],
+        stringsAsFactors = FALSE
+      )
+      
+      instrument_data <- activity_guard(instrument_data)
+      
+      instrument_rows[[instrument]] <- instrument_data
+    }
+  }
+  
+  # Combine all instruments
+  if (length(instrument_rows) > 0) {
+    combined_survey_data <- do.call(rbind, instrument_rows)
+    rownames(combined_survey_data) <- NULL
+    combined_survey_data
+  } else {
+    empty_survey_frame()
+  }
 }
 
 #' Get REDCap Logs
