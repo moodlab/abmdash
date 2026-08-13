@@ -27,6 +27,14 @@ httptest2 mock files use the httptest2 convention `fixtures/<host>/<path>.<ext>`
 derives the path from the request URL. Module dirs (`trad/`, `redcap/`, ...) hold
 hand-crafted inputs; host dirs hold httptest2-recorded request/response pairs.
 
+Variant responses for the SAME request body (empty-result and HTTP-error
+branches) cannot share one fixture file. They are committed under sibling mock
+roots (`fixtures/redcap-errors/`, `fixtures/redcap-empty/`, ...) and PREPENDED
+to the mock-path search order per test via `.mockPaths()`:
+`find_mock_file()` resolves the first match, so one request body replays
+populated, empty, or error responses from different tests
+(see `test-redcap-behavior-lock.R`).
+
 ## 2. Local record workflow (creds-holders only)
 
 Recording real API traffic requires valid credentials. Only run recording on a

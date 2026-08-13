@@ -1,0 +1,40 @@
+[
+    {
+        "record_id": "P001",
+        "interview_date": "2026-08-11",
+        "phq8score": "20",
+        "r01es_commute": "1",
+        "r01es_austin": "1",
+        "r01es_phone": "1",
+        "r01es_computer": "1",
+        "r01es_bpd": "0",
+        "r01es_psychotherapy": "0",
+        "r01es_druguse": "0",
+        "medchng": "0",
+        "r01es_medstop": "0",
+        "r01es_medstart": "0",
+        "r01es_name": "Alice Alpha",
+        "r01es_phonenumber": "5125550101",
+        "r01es_hispanic": "1",
+        "guid": "GUID-AAA111"
+    },
+    {
+        "record_id": "P002",
+        "interview_date": "2026-08-12",
+        "phq8score": "",
+        "r01es_commute": "1",
+        "r01es_austin": "1",
+        "r01es_phone": "1",
+        "r01es_computer": "1",
+        "r01es_bpd": "0",
+        "r01es_psychotherapy": "0",
+        "r01es_druguse": "0",
+        "medchng": "0",
+        "r01es_medstop": "0",
+        "r01es_medstart": "0",
+        "r01es_name": "Bob Beta",
+        "r01es_phonenumber": "5125550102",
+        "r01es_hispanic": "1",
+        "guid": ""
+    }
+]

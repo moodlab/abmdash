@@ -1,0 +1,32 @@
+[
+    {
+        "field_name": "record_id",
+        "form_name": "r01_eligibility",
+        "field_type": "text"
+    },
+    {
+        "field_name": "phq8score",
+        "form_name": "r01_eligibility",
+        "field_type": "calc"
+    },
+    {
+        "field_name": "baseline_timestamp",
+        "form_name": "baseline",
+        "field_type": "text"
+    },
+    {
+        "field_name": "baseline_complete",
+        "form_name": "baseline",
+        "field_type": "dropdown"
+    },
+    {
+        "field_name": "followup_timestamp",
+        "form_name": "followup",
+        "field_type": "text"
+    },
+    {
+        "field_name": "followup_complete",
+        "form_name": "followup",
+        "field_type": "dropdown"
+    }
+]

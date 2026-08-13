@@ -2,7 +2,7 @@
 ac: 3.2
 depends_on: AC-3.1
 risk: medium
-status: spec
+status: complete
 ---
 
 # AC-3.2: Behavior-lock redcap_api.R (9 exports, "" empty-string cases)
@@ -40,11 +40,17 @@ status: spec
 - risk: medium (fixture recording + determinism freezing; zero production-code risk).
 
 ### Progress
-- [ ] redcap locked — pending
+- [x] redcap locked — 2026-08-13 (test-redcap-behavior-lock.R, 64 tests; full suite 202 green; tautology spot-check + determinism verified)
 ### Decision Log
 - spec-resolved — "WITHOUT token" in AC text is misleading: tests require DUMMY token via local_envvar (env gate fires upstream of httptest2).
+- variant mock roots — same request body needs populated/empty/error responses; committed under fixtures/redcap-errors/ + fixtures/redcap-empty/ and prepended per-test via .mockPaths() (find_mock_file first-match).
+- passthrough lock style — list-returning exports (records/metadata/logs/report) locked against the committed fixture content (parse_fixture_body) = reviewed canonical value; derived outputs locked against explicit literals.
 ### Surprises & Discoveries
-- (none yet)
+- get_enrollment_stats() available_fields is "record_id, parsed_interview_date, month_year" — L786 mutates enrolled_df (adds month_year) BEFORE L826 snapshots names(enrolled_df); the two-column expectation was wrong.
+- httr2::resp_body_json() returns list-of-lists (jsonlite simplifyVector=FALSE behavior) even for uniform record arrays — not data.frames; "" survives the round-trip as "" (never NA), "[]" → list() (length 0) which is what triggers the empty-report branches.
+- get_redcap_report() sends returnFormat TWICE (call_redcap_api L50 + get_redcap_report L351); the form body is "…&returnFormat=json&returnFormat=json" — fixture hashes were captured from the real requests, never hand-computed.
+- httptest2 replays a 400 .R fixture as a response and httr2's OWN error machinery then throws ("HTTP 400 Bad Request.") — so the stats fns' tryCatch error frames are reachable through fixtures.
+- monthly_breakdown row names are c(2,1) after the L800 descending sort — value ORDER is the lock; row names are a cosmetic sort artifact (stripped before comparison).
 ### Idempotence & Recovery
 - Safe retry: re-record fixtures with creds-holder workflow; tests idempotent offline.
 - Rollback: git revert.

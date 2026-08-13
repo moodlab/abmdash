@@ -1,0 +1,23 @@
+[
+    {
+        "record_id": "P201",
+        "baseline_timestamp": "2026-08-11 10:00:00",
+        "followup_timestamp": "",
+        "baseline_complete": "2",
+        "followup_complete": ""
+    },
+    {
+        "record_id": "P202",
+        "baseline_timestamp": "",
+        "followup_timestamp": "2026-08-12 09:30:00",
+        "baseline_complete": "",
+        "followup_complete": "2"
+    },
+    {
+        "record_id": "P203",
+        "baseline_timestamp": "",
+        "followup_timestamp": "",
+        "baseline_complete": "",
+        "followup_complete": ""
+    }
+]

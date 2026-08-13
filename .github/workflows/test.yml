@@ -38,9 +38,12 @@ jobs:
         uses: r-lib/actions/setup-r-dependencies@v2
         with:
           cache: true
-
-      - name: Install devtools (test runner)
-        run: Rscript -e 'install.packages("devtools", repos = "https://cloud.r-project.org")'
+          # devtools is the make test runner (not a package dependency); pak
+          # installs it as a binary from RSPM. A separate
+          # install.packages("devtools", repos="https://cloud.r-project.org")
+          # forced SOURCE builds whose textshaping/ragg compiles failed without
+          # system libs (silently, with exit 0), leaving devtools absent.
+          extra-packages: devtools
 
       - name: Run test suite (no API credentials)
         run: make test
