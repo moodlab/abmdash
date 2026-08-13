@@ -1,200 +1,51 @@
-# abmdash: An R pacakge for creating an automatically updating dashboard
+# abmdash: An R package for creating an automatically updating dashboard
 
-## Setting up dev environment + contributing to this repository
+`abmdash` is an R package that builds a **private** Quarto dashboard from REDCap, Google Sheets, Google Calendar, and ABS data. It is rendered via Docker + Quarto, encrypted with staticrypt, and deployed to GitHub Pages every day (cron) and on every push to `main`. There is **no running server** — the output is static HTML pushed to the repo.
 
-### Clone this repo from GitHub
+## Learn the repo
 
-```         
-git clone https://github.com/moodlab/abmdash.git
-```
+- [`docs/okf/index.md`](docs/okf/index.md) — the agent/human map: module docs, deploy pipeline, conventions. Read this first.
+- [`docs/okf/modules/`](docs/okf/modules/index.md) — 9 module concept docs (one per `R/` source file).
+- [`.opencode/skills/abmdash-guide/`](.opencode/skills/abmdash-guide/SKILL.md) — repo skill: learn-repo walkthrough + debug workflows.
 
-### Set up pre-commit hooks
+## Troubleshooting
 
-We use pre-commit hooks to make sure we don't accidentally make changes to the code that make our lives harder. See [this issue](https://github.com/moodlab/abmdash/issues/2) for more description.
+The vignettes are written for non-engineers and follow an "if you see X, here's the cause and the fix" pattern (viewable directly on GitHub):
 
-The pre-commit hooks will run on the GitHub repository each time we push updates using Github Actions via the file in `.github/workflows/pre-commit.yml`. This will prevent code from being merged if it doesn't pass the checks.
-
-You also only have to do this process the first time you're setting up the repo, after that the pre-commit hooks should be set up and run every time you try to commit locally.
-
-To install pre-commit hooks locally so you can make sure your code can get merged:
-
-#### MacOS
-
-In your terminal (You can use the "Terminal" tab inside of RStudio or Positron OR use spotlight search for "terminal" and open the app that pops up first) run the following code:
-
-```         
-## Install homebrew if you haven't already (a package manager like CRAN for MacOS)
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-## Install pre-commit with homebrew
-brew install pre-commit
-```
-
-Then, after navigating inside the `abmddash/` directory, go to your R console and run
-
-```         
-## Confirm you're in your local abmdash directory
-getwd()
-## Install and set up pre-commit hooks locally
-install.packages("precommit")
-precommit::use_precommit()
-```
-
-#### Linux
-
-This can also be done in theory for MacOS
-
-Note: This process should work in theory but hasn't yet been directly tested
-
-In your terminal (You can use the "Terminal" tab inside of RStudio or Positron) run the following code:
-
-```         
-## Install uv to handle Python environments and installation
-curl -LsSf https://astral.sh/uv/install.sh | sh
-## Install pre-commit with uv
-uv tool install pre-commit
-```
-
-Then, after navigating inside the `abmddash/` directory, go to your R console and run
-
-```         
-## Confirm you're in your local abmdash directory
-getwd()
-## Install and set up pre-commit hooks locally
-install.packages("precommit")
-precommit::use_precommit()
-```
-
-#### Windows
-
-Note: This process should work in theory but hasn't yet been directly tested
-
-In your terminal/powershell run the following code:
-
-```         
-## Install uv to handle Python environments and installation
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-## Install pre-commit with uv
-uv tool install pre-commit
-```
-
-Then, after navigating inside the `abmddash/` directory, go to your R console and run
-
-```         
-## Confirm you're in your local abmdash directory
-getwd()
-## Install and set up pre-commit hooks locally
-install.packages("precommit")
-precommit::use_precommit()
-```
-
-#### What if my pre-commit hooks fail?
-
-For a lot of the sytling ones, the fixes are automatic! You can re-stage everything
-
-```
-git add .
-```
-
-And re-do your commit message
-
-```
-git commit -m "Here's your commit message"
-```
-If all the checks pass, you're good to go!
-
-Otherwise, the pre-commit hooks are ususally pretty explicit about what has specifically failed and where. Use those error messages to guide any further fixes.
-
-If you really get stuck, you can file an issue with the Github repo with a bug report, including the full text of the pre-commit output + any other necessary context.
-
-### Set up the codegraph index for agent navigation
-
-We use [codegraph](https://github.com/paul-gauthier/codegraph) to build a symbol-level index of this repo so coding agents get accurate codebase navigation. The index is a machine-local artifact: `.codegraph/` is gitignored and is **never committed** to the repo.
-
-To initialize (or regenerate) the index, run from the repo root:
-
-```
-codegraph init
-```
-
-Regenerate the index whenever it goes stale:
-
-- after structural changes to `R/` files (new files, moved/renamed functions)
-- before starting an agent session that needs codebase navigation
-- any time `codegraph status` reports the index is out of date
-
-### Troubleshooting
-
-Things breaking? The troubleshooting vignettes are written for non-engineers and follow an "if you see X, here's the cause and the fix" pattern:
-
-- [FAQ: runtime errors and their fixes](vignettes/faq.Rmd) — the most common errors with exact error text, cause, and repo-specific fix
-- [REDCap data access](vignettes/redcap-troubleshooting.Rmd) — missing token, the `""` vs `NA` bug class
+- [FAQ: runtime errors and their fixes](vignettes/faq.Rmd) — most common errors with exact error text, cause, and fix
+- [REDCap data access](vignettes/redcap-troubleshooting.Rmd) — missing token, `""` vs `NA` bug class
 - [Google Sheets and Calendar access](vignettes/google-troubleshooting.Rmd) — service-account JSON quoting and sharing
 - [ABS portal login and downloads](vignettes/abs-troubleshooting.Rmd) — credentials, `Not authenticated`, connection quirks
 - [Local Docker build](vignettes/docker-troubleshooting.Rmd) — make targets, `docs/` clobber warning, image issues
 - [Daily CI build](vignettes/ci-troubleshooting.Rmd) — the two jobs, secrets, and the four failure modes
 
-### Create an issue with a description of what you're doing
+## Behavior-lock test suite
 
-In the Github [repo](https://github.com/moodlab/abmdash/issues) create a new issue with a description of what your code changes will do. If you're not sure where to start with the description you can look at previous issues.
+`tests/testthat/` is the executable spec: tests pin current behavior (e.g. [`test-redcap-behavior-lock.R`](tests/testthat/test-redcap-behavior-lock.R)). Harness utilities in [`helper-harness.R`](tests/testthat/helper-harness.R) provide `with_fixed_clock()` (pins time/TZ) and `local_isolated_env()` (unsets API credentials). [`RECORDING.md`](RECORDING.md) documents the fixture recording + redaction workflow (fixtures live in `tests/testthat/fixtures/`).
 
-Generally, issues that add a new feature will start with `feat:`, issues that fix a bug will start with `bug:`, and issues that maintain functionality but modify code for other reasons will start with `maint:`.
+Run tests:
 
-You can also file an issue without intending to change the code yourself. If that's the case please provide a detailed description of what the functionality is now, what the functionality will be after the code change, and assign the issue to the person you're hoping will make the code change.
-
-### Create a git branch related to the issue you created
-
-From the terminal, use:
-
-```
-git switch -c YOUR_GITHUB_USERNMAE/SHORT_DESCRIPTION
+```sh
+make test                 # or: Rscript -e 'devtools::test()'
+make test-trad            # trad-compliance tests only
 ```
 
-For example, when I created a branch to add pre-commit hooks to the repo my command was
+## Build & run
 
-```
-git switch -c mcmullarkey/add-pre-commit
-```
+- **Makefile targets** — `test`, `test-trad`, `docker-build`, `docker-test-auth`, `docker-render` (full local render, same as CI), `lint`, `serve` (serves `docs/` on :8000).
+- [`build-dashboard.sh`](build-dashboard.sh) — local deploy. **WARNING: it runs `rm -rf docs` — back up anything under `docs/okf/` you want to keep first.**
+- [`load-env.sh`](load-env.sh) — sources `.Renviron` (API credentials) for local runs.
+- **renv** — package versions are locked by `renv.lock`; run `renv::restore()` after cloning.
+- **Codegraph index** — `.codegraph/` is a machine-local symbol index for coding agents (gitignored, never committed). Run `codegraph init` from the repo root after structural changes to `R/`, or when agent navigation seems stale.
 
-Creating a new branch allows us to isolate our work on a particular part of the code. 
+## Contributing
 
-The `main` branch of this repo is also protected to prevent code changes that can break the package, so developing on a feature branch allows you to make sure your code passes the necessary checks.
+1. **Clone** — `git clone git@github.com:moodlab/abmdash.git`
+2. **Create an issue** describing what you'll change (prefix `feat:`, `bug:`, or `maint:`). To request someone else do the work, describe current vs desired behavior and assign the issue.
+3. **Branch** — `git switch -c <your-github-username>/<short-description>` (e.g. `mcmullarkey/add-pre-commit`). `main` is protected; feature branches are how changes get reviewed.
+4. **Change + commit** — include `Closes #<issue-number>` in a commit message so the issue auto-closes on merge.
+5. **Push + PR** — `git push origin <branch>`, then open a pull request from the URL GitHub prints.
 
-### Make whatever changes you want on your branch and commit them
+**Pre-commit hooks** run styler/lintr on every commit (CI enforces the same checks). Install once from R: `install.packages("precommit")` then `precommit::use_precommit()`. If a hook fails the fixes are usually automatic — re-stage (`git add .`) and re-commit; otherwise read the hook output and file an issue if stuck.
 
-Go for it!
-
-You'll have to pass the pre-commit checks, but as stated above they do a pretty good job of guidign you if any of them are failing.
-
-The most important part is to include a commit with the text "Closes #{YOUR_ISSUE_NUMBER}" in the commit message
-
-For example, my commit message tends to look something like "Closes #2: blah blah blah"
-
-It's important to include this text so the Github issues automatically get resolved by the pull request later and we don't have to do that step manually.
-
-### Push your branch to GitHub + create a pull request
-
-After all your commits are made, use
-
-```
-git push origin YOUR_GITHUB_USERNMAE/SHORT_DESCRIPTION
-```
-
-This should be the same name as your local branch for consistency
-
-So for me, when I pushed my branch adding pre-commit checks it looked like
-
-```
-git push origin mcmullarkey/add-pre-commit
-```
-
-Then, go to the URL provided after your push succeeds to create a pull request.
-
-In the future I'll try to have a pull request template that gets used automatically. For now, you can look at previous pull requests for examples.
-
-### As of now, you can bypass the review for pull requests
-
-This will probably change in the future, but as of right now as long as you wait for the checks to pass you can bypass the review process and self-merge your pull request.
-
-### You did it!
-
-Thanks for contributing to the repo!
+Deployment is automatic: GitHub Actions rebuilds the dashboard on push to `main` and on the daily cron — you only push code. Thanks for contributing!
