@@ -10,14 +10,14 @@
 
 ## Troubleshooting
 
-The vignettes are written for non-engineers and follow an "if you see X, here's the cause and the fix" pattern. The source lives in `vignettes/*.Rmd`; GitHub serves the raw `.Rmd` source — open in RStudio and click *Knit* to render, or read the source directly:
+The vignettes are written for non-engineers and follow an "if you see X, here's the cause and the fix" pattern. They live in `vignettes/*.md` — plain Markdown, rendered directly by GitHub:
 
-- [FAQ: runtime errors and their fixes](vignettes/faq.Rmd) — most common errors with exact error text, cause, and fix
-- [REDCap data access](vignettes/redcap-troubleshooting.Rmd) — missing token, `""` vs `NA` bug class
-- [Google Sheets and Calendar access](vignettes/google-troubleshooting.Rmd) — service-account JSON quoting and sharing
-- [ABS portal login and downloads](vignettes/abs-troubleshooting.Rmd) — credentials, `Not authenticated`, connection quirks
-- [Local Docker build](vignettes/docker-troubleshooting.Rmd) — make targets, `docs/` clobber warning, image issues
-- [Daily CI build](vignettes/ci-troubleshooting.Rmd) — the two jobs, secrets, and the four failure modes
+- [FAQ: runtime errors and their fixes](vignettes/faq.md) — most common errors with exact error text, cause, and fix
+- [REDCap data access](vignettes/redcap-troubleshooting.md) — missing token, `""` vs `NA` bug class
+- [Google Sheets and Calendar access](vignettes/google-troubleshooting.md) — service-account JSON quoting and sharing
+- [ABS portal login and downloads](vignettes/abs-troubleshooting.md) — credentials, `Not authenticated`, connection quirks
+- [Local Docker build](vignettes/docker-troubleshooting.md) — make targets, `docs/` clobber warning, image issues
+- [Daily CI build](vignettes/ci-troubleshooting.md) — the two jobs, secrets, and the four failure modes
 
 ## Behavior-lock test suite
 

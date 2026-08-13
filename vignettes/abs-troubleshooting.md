@@ -1,11 +1,4 @@
----
-title: "Troubleshooting ABS portal login and downloads"
-output: rmarkdown::html_vignette
-vignette: >
-  %\VignetteIndexEntry{Troubleshooting ABS portal login and downloads}
-  %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
----
+# Troubleshooting ABS portal login and downloads
 
 ## What this guide is for
 
@@ -41,7 +34,7 @@ Docker image and, inside the container, logs in, downloads the CSV, and prints
 how many rows came back. That is the single best command to run when you
 suspect ABS credentials are the problem:
 
-```{r docker-test-auth, eval=FALSE}
+```
 # From the repo root, in a terminal (requires Docker + a .Renviron file):
 #   make docker-test-auth
 #

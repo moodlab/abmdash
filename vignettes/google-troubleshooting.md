@@ -1,11 +1,4 @@
----
-title: "Troubleshooting Google Sheets and Calendar access"
-output: rmarkdown::html_vignette
-vignette: >
-  %\VignetteIndexEntry{Troubleshooting Google Sheets and Calendar access}
-  %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
----
+# Troubleshooting Google Sheets and Calendar access
 
 ## What this guide is for
 
@@ -51,7 +44,7 @@ The three rules that prevent the parse failures:
 
 A quick self-check after editing `.Renviron`:
 
-```{r check-json, eval=FALSE}
+```
 # source ./load-env.sh first, then:
 raw <- Sys.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
 nchar(raw)            # should be several thousand, not 0

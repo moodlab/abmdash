@@ -17,7 +17,7 @@ description: >-
 
 A single-file orientation for anyone (agent or human) new to this repository.
 Read top to bottom once; then use the module map as a lookup table. For
-troubleshooting (not covered here) see the [troubleshooting vignettes](vignettes/faq.Rmd).
+troubleshooting (not covered here) see the [troubleshooting vignettes](vignettes/faq.md).
 
 ## 1. Repo Purpose
 
