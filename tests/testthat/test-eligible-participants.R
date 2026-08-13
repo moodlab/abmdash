@@ -114,3 +114,30 @@ test_that("get_eligible_participants returns summary frame when report has no ro
   expect_equal(result$Total_Records, 0)
   expect_equal(result$Eligible_Count, 0)
 })
+
+test_that("get_weekly_screening_stats excludes records with empty phq8score", {
+  # #38 corrected diagnosis: root cause was phq8score "" -> NA row leak, NOT
+  # interview_date as the issue ACs originally hypothesized.
+  local_mocked_bindings(
+    get_redcap_report = function(report_id, ...) {
+      list(
+        eligible_record("1", phq8score = "20"),  # eligible (>= 17 cutoff)
+        eligible_record("2", phq8score = "")     # empty phq8score
+      )
+    }
+  )
+
+  result <- get_weekly_screening_stats()
+
+  # Structure consumed by inst/dashboard/index.qmd "Screening Summary
+  # (Past 7 Days)" card (index.qmd:486-517): a one-row data.frame whose
+  # eligible_count column feeds the "Eligible Participants" row.
+  expect_s3_class(result, "data.frame")
+  expect_equal(names(result), c("total_screenings", "eligible_count", "hispanic_count"))
+  expect_equal(nrow(result), 1)
+  expect_equal(result$total_screenings, 2)
+  # Empty-phq8score record must NOT count: pre-fix code leaked an all-NA row
+  # (as.numeric("") is NA in the row index) that inflated eligible_count to 2.
+  expect_equal(result$eligible_count, 1)
+  expect_equal(result$hispanic_count, 0)
+})
