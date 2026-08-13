@@ -1,0 +1,18 @@
+E2E run against LIVE REDCap report 14081 with the pre-fix installed package
+(R/redcap_api.R @ 1b874dd). Exact production symptom reproduced:
+
+  === Running get_eligible_participants() ===
+                                   Status Total_Records Eligible_Count
+1 Error: row names contain missing values             0              0
+
+Status frame (not participant data): Total_Records 0, Eligible_Count 0 —
+matches the dashboard screenshot in issue #38.
+
+Underlying trace (same run, pre-fix code paths exercised step by step):
+  report_df nrow: 83, ncol: 1388      (raw report 14081)
+  recent_records nrow: 61             (30-day window; NA dates already excluded)
+  phq8score as.numeric NA count: 21   (empty-string scores: as.numeric("") = NA)
+  full eligibility condition NA count: 1  (NA leaked into the row index)
+  eligible nrow: 6 with one all-NA row inserted (row name "NA")
+  sapply(USE.NAMES=TRUE) names: ... | NA | ...  (real NA name value)
+  data.frame() -> ERROR: row names contain missing values

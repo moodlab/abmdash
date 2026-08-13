@@ -1,0 +1,17 @@
+✔ | F W  S  OK | Context
+
+⠏ |          0 | combined-calendar                                              Warning: failed to fetch calendar cal_broken: API error for this calendar
+
+✔ |          8 | combined-calendar
+
+⠏ |          0 | eligible-participants                                          
+✔ |         19 | eligible-participants
+
+⠏ |          0 | run-initial-function                                           
+✔ |          1 | run-initial-function
+
+⠏ |          0 | trad-compliance                                                
+✔ |         11 | trad-compliance
+
+══ Results ═════════════════════════════════════════════════════════════════════
+[ FAIL 0 | WARN 0 | SKIP 0 | PASS 39 ]

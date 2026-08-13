@@ -430,7 +430,12 @@ get_eligible_participants <- function() {
     
     recent_count <- nrow(recent_records)
     
-    # Apply eligibility criteria to recent records
+    # Apply eligibility criteria to recent records.
+    # Parse phq8score once: as.numeric() yields NA for empty/unparseable
+    # values, and an NA in the row index would leak an all-NA row into the
+    # result (and later crash data.frame() with "row names contain missing
+    # values"), so guard on the parsed value, not the raw string.
+    phq8score_num <- suppressWarnings(as.numeric(recent_records$phq8score))
     eligible_participants <- recent_records[
       !is.na(recent_records$r01es_commute) & recent_records$r01es_commute == "1" &
       !is.na(recent_records$r01es_austin) & recent_records$r01es_austin == "1" &
@@ -438,15 +443,15 @@ get_eligible_participants <- function() {
       !is.na(recent_records$r01es_computer) & recent_records$r01es_computer == "1" &
       !is.na(recent_records$r01es_bpd) & recent_records$r01es_bpd == "0" &
       !is.na(recent_records$r01es_psychotherapy) & recent_records$r01es_psychotherapy == "0" &
-      !is.na(recent_records$phq8score) & as.numeric(recent_records$phq8score) >= 17 &
+      !is.na(phq8score_num) & phq8score_num >= 17 &
       !is.na(recent_records$r01es_druguse) & recent_records$r01es_druguse == "0" &
       !is.na(recent_records$medchng) & recent_records$medchng == "0" &
       !is.na(recent_records$r01es_medstop) & recent_records$r01es_medstop == "0" &
       !is.na(recent_records$r01es_medstart) & recent_records$r01es_medstart == "0",
     ]
-    
+
     eligible_count <- nrow(eligible_participants)
-    
+
     # If no eligible participants, return summary
     if (eligible_count == 0) {
       return(data.frame(
@@ -458,7 +463,10 @@ get_eligible_participants <- function() {
       ))
     }
     
-    # Extract first name from the r01es_name field
+    # Extract first name from the r01es_name field.
+    # USE.NAMES = FALSE: sapply would otherwise name the result with the full
+    # name values; an NA name value is then promoted to a row name by
+    # data.frame() below and raises "row names contain missing values".
     first_names <- sapply(eligible_participants$r01es_name, function(full_name) {
       if (is.null(full_name) || is.na(full_name) || full_name == "") {
         return("Unknown")
@@ -466,7 +474,7 @@ get_eligible_participants <- function() {
       # Get the first word (before first space)
       first_word <- sub("\\s.*", "", full_name)
       return(first_word)
-    })
+    }, USE.NAMES = FALSE)
 
     # Return the specific columns for eligible participants
     result <- data.frame(
@@ -552,7 +560,11 @@ get_weekly_screening_stats <- function() {
 
     total_screenings <- nrow(recent_records)
 
-    # Apply eligibility criteria to recent records
+    # Apply eligibility criteria to recent records.
+    # Parse phq8score once and guard on the parsed value: as.numeric() yields
+    # NA for empty/unparseable values, and an NA in the row index would insert
+    # an all-NA row that inflates eligible_count.
+    phq8score_num <- suppressWarnings(as.numeric(recent_records$phq8score))
     eligible_participants <- recent_records[
       !is.na(recent_records$r01es_commute) & recent_records$r01es_commute == "1" &
       !is.na(recent_records$r01es_austin) & recent_records$r01es_austin == "1" &
@@ -560,7 +572,7 @@ get_weekly_screening_stats <- function() {
       !is.na(recent_records$r01es_computer) & recent_records$r01es_computer == "1" &
       !is.na(recent_records$r01es_bpd) & recent_records$r01es_bpd == "0" &
       !is.na(recent_records$r01es_psychotherapy) & recent_records$r01es_psychotherapy == "0" &
-      !is.na(recent_records$phq8score) & as.numeric(recent_records$phq8score) >= 17 &
+      !is.na(phq8score_num) & phq8score_num >= 17 &
       !is.na(recent_records$r01es_druguse) & recent_records$r01es_druguse == "0" &
       !is.na(recent_records$medchng) & recent_records$medchng == "0" &
       !is.na(recent_records$r01es_medstop) & recent_records$r01es_medstop == "0" &
