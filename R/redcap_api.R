@@ -267,11 +267,11 @@ get_survey_completions <- function(surveys = NULL, records = NULL, format = "jso
 #' @return Data frame with columns field_name, form_name, field_type
 #' @keywords internal
 metadata_to_df <- function(metadata) {
-  do.call(rbind, lapply(metadata, function(x) {
+  do.call(rbind, lapply(metadata, function(metadata_entry) {
     data.frame(
-      field_name = x$field_name %||% "",
-      form_name = x$form_name %||% "",
-      field_type = x$field_type %||% "",
+      field_name = metadata_entry$field_name %||% "",
+      form_name = metadata_entry$form_name %||% "",
+      field_type = metadata_entry$field_type %||% "",
       stringsAsFactors = FALSE
     )
   }))
@@ -304,8 +304,8 @@ ensure_fields <- function(record, all_fields) {
 #' @return Data frame with one row per record
 #' @keywords internal
 list_to_df <- function(rows, all_fields) {
-  do.call(rbind, lapply(rows, function(row) {
-    data.frame(ensure_fields(row, all_fields), stringsAsFactors = FALSE)
+  do.call(rbind, lapply(rows, function(survey_record) {
+    data.frame(ensure_fields(survey_record, all_fields), stringsAsFactors = FALSE)
   }))
 }
 
@@ -550,7 +550,10 @@ get_eligible_participants <- function() {
   })
 }
 
-# Helper function for null coalescing
+# Null coalescing helper: x unless NULL, then y.
+# The metadata fixture has zero NULL fields, so the right branch is untested
+# by the lock — the guard is retained for real metadata where REDCap can
+# omit fields from JSON responses.
 `%||%` <- function(x, y) if (is.null(x)) y else x
 
 #' Flatten Report Rows into a Data Frame
@@ -564,8 +567,8 @@ get_eligible_participants <- function() {
 #' @keywords internal
 report_to_df <- function(raw_data) {
   if (is.list(raw_data) && !is.data.frame(raw_data)) {
-    do.call(rbind, lapply(raw_data, function(x) {
-      data.frame(x, stringsAsFactors = FALSE)
+    do.call(rbind, lapply(raw_data, function(report_record) {
+      data.frame(report_record, stringsAsFactors = FALSE)
     }))
   } else {
     raw_data
