@@ -427,9 +427,12 @@ check_recent_responses <- function(sheet_url,
   if (recent_count > 0) {
     message("\nRecent response dates:")
     recent_dates <- parsed_timestamps[recent_mask]
-    for (i in seq_along(recent_dates)) {
-      message("  ", format(recent_dates[i], "%Y-%m-%d %H:%M:%S"))
-    }
+    # One message() call PER DATE — the per-date side effects are behavior and
+    # must be preserved exactly (length(recent_dates) calls, not one
+    # concatenated string). lapply() runs the same emitter once per element.
+    invisible(lapply(recent_dates, function(d) {
+      message("  ", format(d, "%Y-%m-%d %H:%M:%S"))
+    }))
   }
 
   return(list(
