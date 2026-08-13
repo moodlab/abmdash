@@ -663,14 +663,7 @@ get_weekly_screening_stats <- function() {
       ))
     }
 
-    # Convert list to data frame
-    if (is.list(raw_data) && !is.data.frame(raw_data)) {
-      report_df <- do.call(rbind, lapply(raw_data, function(x) {
-        data.frame(x, stringsAsFactors = FALSE)
-      }))
-    } else {
-      report_df <- raw_data
-    }
+    report_df <- report_to_df(raw_data)
 
     if (is.null(report_df) || nrow(report_df) == 0) {
       return(data.frame(
@@ -685,39 +678,12 @@ get_weekly_screening_stats <- function() {
     seven_days_ago <- Sys.Date() - 7
     today <- Sys.Date()
 
-    # First filter by date if interview_date is available
-    if ("interview_date" %in% names(report_df)) {
-      # Parse interview_date and filter to past 7 days
-      report_df$interview_date_parsed <- as.Date(report_df$interview_date)
-      recent_records <- report_df[
-        !is.na(report_df$interview_date_parsed) &
-        report_df$interview_date_parsed >= seven_days_ago &
-        report_df$interview_date_parsed <= today,
-      ]
-    } else {
-      recent_records <- report_df
-    }
+    recent_records <- filter_recent_dates(report_df, seven_days_ago, today)
 
     total_screenings <- nrow(recent_records)
 
-    # Apply eligibility criteria to recent records.
-    # Parse phq8score once and guard on the parsed value: as.numeric() yields
-    # NA for empty/unparseable values, and an NA in the row index would insert
-    # an all-NA row that inflates eligible_count.
-    phq8score_num <- suppressWarnings(as.numeric(recent_records$phq8score))
-    eligible_participants <- recent_records[
-      !is.na(recent_records$r01es_commute) & recent_records$r01es_commute == "1" &
-      !is.na(recent_records$r01es_austin) & recent_records$r01es_austin == "1" &
-      !is.na(recent_records$r01es_phone) & recent_records$r01es_phone == "1" &
-      !is.na(recent_records$r01es_computer) & recent_records$r01es_computer == "1" &
-      !is.na(recent_records$r01es_bpd) & recent_records$r01es_bpd == "0" &
-      !is.na(recent_records$r01es_psychotherapy) & recent_records$r01es_psychotherapy == "0" &
-      !is.na(phq8score_num) & phq8score_num >= 17 &
-      !is.na(recent_records$r01es_druguse) & recent_records$r01es_druguse == "0" &
-      !is.na(recent_records$medchng) & recent_records$medchng == "0" &
-      !is.na(recent_records$r01es_medstop) & recent_records$r01es_medstop == "0" &
-      !is.na(recent_records$r01es_medstart) & recent_records$r01es_medstart == "0",
-    ]
+    # Apply eligibility criteria to recent records (see eligibility_mask).
+    eligible_participants <- recent_records[eligibility_mask(recent_records), ]
 
     eligible_count <- nrow(eligible_participants)
 
