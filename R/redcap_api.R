@@ -74,13 +74,13 @@ call_redcap_api <- function(content = "record", format = "json", ...) {
 #' @return Named list of body parameters
 #' @keywords internal
 build_request_body <- function(token, content, format, ...) {
-  list(
+  return(list(
     token = token,
     content = content,
     format = format,
     returnFormat = format,
     ...
-  )
+  ))
 }
 
 #' Parse the REDCap API Response
@@ -102,7 +102,7 @@ parse_response <- function(response, format) {
   } else {
     parsed_response <- httr2::resp_body_string(response)
   }
-  parsed_response
+  return(parsed_response)
 }
 
 #' Get REDCap Records
@@ -253,7 +253,7 @@ get_survey_completions <- function(surveys = NULL, records = NULL, format = "jso
   }
   
   # Reshape from wide to long format
-  reshape_long(survey_df, instrument_names)
+  return(reshape_long(survey_df, instrument_names))
 }
 
 #' Flatten REDCap Metadata into a Data Frame
@@ -267,14 +267,14 @@ get_survey_completions <- function(surveys = NULL, records = NULL, format = "jso
 #' @return Data frame with columns field_name, form_name, field_type
 #' @keywords internal
 metadata_to_df <- function(metadata) {
-  do.call(rbind, lapply(metadata, function(metadata_entry) {
-    data.frame(
+  return(do.call(rbind, lapply(metadata, function(metadata_entry) {
+    return(data.frame(
       field_name = metadata_entry$field_name %||% "",
       form_name = metadata_entry$form_name %||% "",
       field_type = metadata_entry$field_type %||% "",
       stringsAsFactors = FALSE
-    )
-  }))
+    ))
+  })))
 }
 
 #' Ensure a Survey Record Carries Every Expected Field
@@ -293,7 +293,7 @@ ensure_fields <- function(record, all_fields) {
       record[[field]] <- ""
     }
   }
-  record
+  return(record)
 }
 
 #' Flatten Survey Records into a Data Frame
@@ -304,9 +304,9 @@ ensure_fields <- function(record, all_fields) {
 #' @return Data frame with one row per record
 #' @keywords internal
 list_to_df <- function(rows, all_fields) {
-  do.call(rbind, lapply(rows, function(survey_record) {
-    data.frame(ensure_fields(survey_record, all_fields), stringsAsFactors = FALSE)
-  }))
+  return(do.call(rbind, lapply(rows, function(survey_record) {
+    return(data.frame(ensure_fields(survey_record, all_fields), stringsAsFactors = FALSE))
+  })))
 }
 
 #' Empty Survey Result
@@ -316,13 +316,13 @@ list_to_df <- function(rows, all_fields) {
 #' @return Data frame with the survey result columns and zero rows
 #' @keywords internal
 empty_survey_frame <- function() {
-  data.frame(
+  return(data.frame(
     record_id = character(0),
     survey_instrument = character(0),
     survey_timestamp = character(0),
     survey_complete = character(0),
     stringsAsFactors = FALSE
-  )
+  ))
 }
 
 #' Keep Rows with Any Survey Activity
@@ -336,12 +336,12 @@ empty_survey_frame <- function() {
 #' @return The input filtered to rows with any survey activity
 #' @keywords internal
 activity_guard <- function(instrument_data) {
-  instrument_data[
+  return(instrument_data[
     !is.na(instrument_data$survey_timestamp) &
     instrument_data$survey_timestamp != "" |
     !is.na(instrument_data$survey_complete) &
     instrument_data$survey_complete != "",
-  ]
+  ])
 }
 
 #' Reshape Survey Data from Wide to Long
@@ -383,9 +383,9 @@ reshape_long <- function(survey_df, instrument_names) {
   if (length(instrument_rows) > 0) {
     combined_survey_data <- do.call(rbind, instrument_rows)
     rownames(combined_survey_data) <- NULL
-    combined_survey_data
+    return(combined_survey_data)
   } else {
-    empty_survey_frame()
+    return(empty_survey_frame())
   }
 }
 
@@ -567,11 +567,11 @@ get_eligible_participants <- function() {
 #' @keywords internal
 report_to_df <- function(raw_data) {
   if (is.list(raw_data) && !is.data.frame(raw_data)) {
-    do.call(rbind, lapply(raw_data, function(report_record) {
-      data.frame(report_record, stringsAsFactors = FALSE)
-    }))
+    return(do.call(rbind, lapply(raw_data, function(report_record) {
+      return(data.frame(report_record, stringsAsFactors = FALSE))
+    })))
   } else {
-    raw_data
+    return(raw_data)
   }
 }
 
@@ -590,13 +590,13 @@ report_to_df <- function(raw_data) {
 filter_recent_dates <- function(df, date_start, date_end) {
   if ("interview_date" %in% names(df)) {
     df$interview_date_parsed <- as.Date(df$interview_date)
-    df[
+    return(df[
       !is.na(df$interview_date_parsed) &
       df$interview_date_parsed >= date_start &
       df$interview_date_parsed <= date_end,
-    ]
+    ])
   } else {
-    df
+    return(df)
   }
 }
 
@@ -614,17 +614,20 @@ filter_recent_dates <- function(df, date_start, date_end) {
 #' @keywords internal
 eligibility_mask <- function(recent_records) {
   phq8score_num <- suppressWarnings(as.numeric(recent_records$phq8score))
-  !is.na(recent_records$r01es_commute) & recent_records$r01es_commute == "1" &
-  !is.na(recent_records$r01es_austin) & recent_records$r01es_austin == "1" &
-  !is.na(recent_records$r01es_phone) & recent_records$r01es_phone == "1" &
-  !is.na(recent_records$r01es_computer) & recent_records$r01es_computer == "1" &
-  !is.na(recent_records$r01es_bpd) & recent_records$r01es_bpd == "0" &
-  !is.na(recent_records$r01es_psychotherapy) & recent_records$r01es_psychotherapy == "0" &
-  !is.na(phq8score_num) & phq8score_num >= 17 &
-  !is.na(recent_records$r01es_druguse) & recent_records$r01es_druguse == "0" &
-  !is.na(recent_records$medchng) & recent_records$medchng == "0" &
-  !is.na(recent_records$r01es_medstop) & recent_records$r01es_medstop == "0" &
-  !is.na(recent_records$r01es_medstart) & recent_records$r01es_medstart == "0"
+  return(
+    !is.na(recent_records$r01es_commute) & recent_records$r01es_commute == "1" &
+    !is.na(recent_records$r01es_austin) & recent_records$r01es_austin == "1" &
+    !is.na(recent_records$r01es_phone) & recent_records$r01es_phone == "1" &
+    !is.na(recent_records$r01es_computer) & recent_records$r01es_computer == "1" &
+    !is.na(recent_records$r01es_bpd) & recent_records$r01es_bpd == "0" &
+    !is.na(recent_records$r01es_psychotherapy) &
+      recent_records$r01es_psychotherapy == "0" &
+    !is.na(phq8score_num) & phq8score_num >= 17 &
+    !is.na(recent_records$r01es_druguse) & recent_records$r01es_druguse == "0" &
+    !is.na(recent_records$medchng) & recent_records$medchng == "0" &
+    !is.na(recent_records$r01es_medstop) & recent_records$r01es_medstop == "0" &
+    !is.na(recent_records$r01es_medstart) & recent_records$r01es_medstart == "0"
+  )
 }
 
 #' First Word of a Full Name
@@ -641,7 +644,7 @@ first_name_of <- function(full_name) {
   if (is.null(full_name) || is.na(full_name) || full_name == "") {
     return("Unknown")
   }
-  sub("\\s.*", "", full_name)
+  return(sub("\\s.*", "", full_name))
 }
 
 #' Get Weekly Screening Statistics
@@ -883,11 +886,14 @@ detect_guid_field <- function(report_df) {
   if (length(known_match) > 0) {
     return(known_match[1])
   }
-  fuzzy_match <- grep("guid|unique", names(report_df), ignore.case = TRUE, value = TRUE)
+  fuzzy_match <- grep(
+    "guid|unique", names(report_df),
+    ignore.case = TRUE, value = TRUE
+  )
   if (length(fuzzy_match) > 0) {
     return(fuzzy_match[1])
   }
-  NULL
+  return(NULL)
 }
 
 #' One Row per Enrolled Record with its Earliest Interview Date
@@ -914,8 +920,8 @@ group_enrolled <- function(report_df, enrolled_record_ids) {
   # First, get records with valid interview_dates
   enrolled_with_dates <- enrolled_df[
     !is.na(enrolled_df$interview_date) &
-    enrolled_df$interview_date != "" &
-    enrolled_df$interview_date != "NA",
+      enrolled_df$interview_date != "" &
+      enrolled_df$interview_date != "NA",
   ]
 
   if (nrow(enrolled_with_dates) == 0) {
@@ -926,7 +932,8 @@ group_enrolled <- function(report_df, enrolled_record_ids) {
   }
 
   # Parse dates first
-  enrolled_with_dates$parsed_interview_date <- as.Date(enrolled_with_dates$interview_date)
+  enrolled_with_dates$parsed_interview_date <-
+    as.Date(enrolled_with_dates$interview_date)
 
   # Get the earliest date for each record_id
   earliest_dates <- aggregate(
@@ -937,15 +944,18 @@ group_enrolled <- function(report_df, enrolled_record_ids) {
   )
 
   # For records without interview_date, add them with NA date
-  records_without_dates <- setdiff(enrolled_record_ids, earliest_dates$record_id)
+  records_without_dates <- setdiff(
+    enrolled_record_ids,
+    earliest_dates$record_id
+  )
   if (length(records_without_dates) > 0) {
     missing_dates <- data.frame(
       record_id = records_without_dates,
       parsed_interview_date = as.Date(NA)
     )
-    rbind(earliest_dates, missing_dates)
+    return(rbind(earliest_dates, missing_dates))
   } else {
-    earliest_dates
+    return(earliest_dates)
   }
 }
 
@@ -979,5 +989,5 @@ monthly_breakdown_counts <- function(enrolled_df) {
     stringsAsFactors = FALSE
   )
   # Sort by month descending
-  breakdown[order(breakdown$month, decreasing = TRUE), ]
+  return(breakdown[order(breakdown$month, decreasing = TRUE), ])
 }
