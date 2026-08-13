@@ -135,3 +135,60 @@ expect_snapshot_locked <- function(module, value, ...) {
   testthat::expect_snapshot_file(snap_path, name = paste0(module, ".rds"), ...)
   invisible()
 }
+
+#' Build a Google API HTTP mock served from synthetic fixtures
+#'
+#' Returns a response-mock function for \code{\link[httr2]{with_mocked_responses}}
+#' that serves hand-crafted fixture JSON from \code{fixtures/gsheet/} or
+#' \code{fixtures/gcal/}. Requests are matched on URL substrings: the token
+#' endpoint, Sheets values, Calendar events, and calendarList. Because matching
+#' is URL-based (the request BODY is never inspected), the JWT assertion posted
+#' to the token endpoint can differ every run — the throwaway RSA key in
+#' \code{test-google-token-signing.R} is therefore harmless, exactly as
+#' RECORDING.md describes.
+#'
+#' @param fixture_dir Character scalar; directory holding the fixture JSON
+#'   files (typically \code{testthat::test_path("fixtures", "gsheet")} or
+#'   \code{"gcal"}).
+#' @param mapping Named character vector of URL-pattern = fixture-file
+#'   overrides/additions. Pattern names are matched with \code{\link{grepl}}
+#'   against the request URL; the LAST matching pattern wins, so entries
+#'   appended here take precedence over the built-in defaults (e.g. a test
+#'   that wants a different file served for the same URL).
+#'
+#' @return A function of one argument (\code{req}) returning an
+#'   \code{\link[httr2]{response}}; pass it to
+#'   \code{httr2::with_mocked_responses()}.
+mock_google_fixture <- function(fixture_dir, mapping = NULL) {
+  defaults <- c(
+    "oauth2.googleapis.com/token" = "token.json",
+    "sheets.googleapis.com/v4/spreadsheets/.*/values/Sheet1$" = "sheet-full.json",
+    "users/me/calendarList" = "calendar-list.json",
+    "calendar/v3/calendars/" = "events.json"
+  )
+  if (!is.null(mapping)) {
+    defaults[names(mapping)] <- mapping
+  }
+  patterns <- names(defaults)
+  files <- unname(defaults)
+
+  function(req) {
+    url <- req$url
+    hits <- which(vapply(patterns, function(p) grepl(p, url), logical(1)))
+    if (length(hits) == 0) {
+      stop("mock_google_fixture: no fixture mapped for URL ", url)
+    }
+    fixture_file <- files[hits[[length(hits)]]]
+    path <- file.path(fixture_dir, fixture_file)
+    if (!file.exists(path)) {
+      stop("mock_google_fixture: fixture file missing: ", path)
+    }
+    body <- paste(readLines(path, warn = FALSE), collapse = "\n")
+    httr2::response(
+      status_code = 200L,
+      url = url,
+      headers = list("Content-Type" = "application/json"),
+      body = charToRaw(body)
+    )
+  }
+}
