@@ -46,7 +46,7 @@ the table below).
 | If you see | Cause | Fix |
 |---|---|---|
 | `REDCAP_API_TOKEN environment variable is not set or is empty` | The token is missing or blank in your environment | Add `REDCAP_API_TOKEN=<your-token>` to `.Renviron` (one line, no quotes needed), then run `source ./load-env.sh` and restart R |
-| `Failed to parse REDCap response` or HTTP `401`/`403` | The token is wrong, was rotated, or belongs to a different REDCap project | Re-copy the token from the REDCap project page → *API* tab; confirm it is the token for the **screening** project that owns reports 14081 and 13387 |
+| `Failed to parse REDCap response` or HTTP `401`/`403` | The token is wrong, was rotated, or belongs to a different REDCap project | Re-copy the token from the REDCap project page → *API* tab; confirm it is the token for the project that backs screening report 14081 and enrollment report 13387 |
 | `Error in data.frame(..., check.rows = FALSE): row names contain missing values` | REDCap sends `""` (empty string), **not** `NA`, for unset fields. `as.numeric("")` returns `NA`, and an `NA` used as a row index inserts an all-`NA` row, which `data.frame()` then refuses to build | Parse each numeric field **once** with `suppressWarnings(as.numeric(...))` and guard on the *parsed* value — never on the raw string. Keep `USE.NAMES = FALSE` in `sapply()`. See the next section for the pattern (fixed in PR #39) |
 | Screens or counts appear but are all `NA` / blank | The same `""` vs `NA` problem, but in a field that was not caught by the guard | Apply the parse-once pattern below to any field you convert with `as.numeric()` |
 
@@ -67,9 +67,12 @@ suppressWarnings(as.numeric(""))   # NA
 
 # GOOD: parse once, then guard on the PARSED value
 score <- suppressWarnings(as.numeric(raw))
-score[is.na(score)] <- 0            # or keep and drop: score[!is.na(score)]
-eligible <- score[!is.na(score) & score >= 17]
+eligible <- score[!is.na(score) & score >= 17]   # drop NA rows — never impute 0
 ```
+
+The codebase **drops** `NA` rows with `!is.na(...)` — it never substitutes `0`.
+Imputing 0 would push a blank answer into the PHQ ≥ 17 eligibility check and
+could let someone who never answered look eligible.
 
 Two rules that prevent this whole class of bug:
 
