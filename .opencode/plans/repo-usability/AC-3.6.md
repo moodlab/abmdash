@@ -2,7 +2,7 @@
 ac: 3.6
 depends_on: AC-3.3
 risk: medium
-status: spec
+status: complete
 ---
 
 # AC-3.6: Refactor gsheet_api.R + gcal_api.R (ZERO behavior change)
@@ -44,11 +44,16 @@ status: spec
 - risk: medium.
 
 ### Progress
-- [ ] refactor — pending
+- [x] refactor — complete 2026-08-13 (PR #XX — 6 commits: e7dc58e test-guard, e937333 gsheet helpers, 6c4f98c dead tryCatch collapse, a529122 message-loop lapply, c3f0339 gcal helpers, 16c9118 concat-loop kill)
 ### Decision Log
 - spec-resolved — dead-code removal adopted (empirical proof + ISO-NA negative test guard).
+- within-file helper copies (gsheet/gcal stay separate — wrong-mock tripwire preserved; parse/sign helpers duplicated per module).
+- unname() wraps the unlist in get_combined_calendar_events to keep merged items unnamed for named calendar_ids input (matches original c() semantics).
 ### Surprises & Discoveries
-- (none yet)
+- AC-3.6 (repo-usability): The ISO-NA guard test was initially VACUOUS — fixture dates (April) sat before the REAL cutoff (real clock Aug 2026), so recent_count==0 even with a multi-format parser installed; the negative control could not fail. Freezing the clock (with_fixed_clock "2026-04-15") put ISO date 2026-04-10 after cutoff, making the guard bite. Lesson: any negative-control test against a time-dependent cutoff MUST freeze the clock or the guard is vacuous.
+- AC-3.6 (repo-usability): The first negative control (tryCatch error-fallback) could not fail — as.POSIXct on character NEVER errors (returns NA), so the error handler never fires. The realistic sneaky-pass is an NA-detection fallback (if all(is.na) try next format), which DOES flip ISO input to recent_count>0. Empirical double-proof: the old tryCatch chain was dead AND the guard must target NA-detection revival.
+- AC-3.6 (repo-usability): Extracting gcal's parse helper dedups the identical parse-fail stop from 2 source sites (get_calendar_events + list_calendars) to 1 — parser-level sink diffs report occurrence-count changes as "removed" even when runtime behavior is identical. Sink diffs must be reviewed with dedup as a sanctioned diff.
+- AC-3.6 (repo-usability): The per-date message loop-variable rename (recent_dates[i] → d) shows as a sink "change" in deparse-level diffs even though the emitted message string is byte-identical — verify message side effects via sink capture (exactly N calls), not source deparse.
 ### Idempotence & Recovery
 - Safe retry: per-commit lock-green.
 - Rollback: git revert; lock suite catches drift.
