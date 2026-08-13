@@ -141,6 +141,37 @@ test_that("check_participant_issues forwards the hardcoded public sheet args", {
   expect_true(grepl("Checking for participant issues", out[1], fixed = TRUE))
 })
 
+test_that("ISO-format timestamps parse to NA — dead multi-format fallback NOT revived", {
+  # AC-3.6 sneaky-pass guard: the nested tryCatch fallback chain removed by the
+  # refactor (L328-342) is DEAD — as.POSIXct with a fixed format never errors on
+  # character input, it returns NA (verified empirically). ISO-format input
+  # ("2026-01-15 10:00:00") does not match the MDY format, so every timestamp
+  # parses to NA and nothing is recent. This pins the invariant: a future
+  # refactorer must NOT "helpfully" revive the fallback as a multi-format
+  # parser — that would silently flip ISO input to recent_count > 0 while the
+  # MDY fixture keeps the existing lock green.
+  local_isolated_env()
+  with_fixed_clock("2026-04-15 00:00:00 UTC")
+  iso_df <- data.frame(
+    Timestamp = c("2026-01-15 10:00:00", "2026-04-10 09:00:00"),
+    Participant = c("P900", "P901"),
+    stringsAsFactors = FALSE
+  )
+  local_mocked_bindings(
+    read_google_sheet = function(sheet_url, sheet_name = NULL, range = NULL) iso_df
+  )
+
+  result <- suppressMessages(
+    check_recent_responses(
+      "https://docs.google.com/spreadsheets/d/TEST_SHEET_123/edit",
+      days_back = 14
+    )
+  )
+
+  expect_false(result$has_recent)
+  expect_equal(result$recent_count, 0)
+})
+
 test_that("get_google_sheets_access_token stops verbatim when env is unset", {
   local_isolated_env()
   # Mirrors the redcap-lock sibling convention (test-redcap-behavior-lock.R:79-91):
