@@ -53,17 +53,7 @@ call_redcap_api <- function(content = "record", format = "json", ...) {
       httr2::req_body_form(!!!body_params) |>
       httr2::req_perform()
     
-    # Parse response based on format
-    if (format == "json") {
-      content <- httr2::resp_body_json(response)
-    } else if (format == "csv") {
-      content <- httr2::resp_body_string(response)
-      content <- utils::read.csv(text = content, stringsAsFactors = FALSE)
-    } else {
-      content <- httr2::resp_body_string(response)
-    }
-    
-    return(content)
+    parse_response(response, format)
     
   }, error = function(e) {
     stop("REDCap API call failed: ", e$message)
@@ -91,6 +81,28 @@ build_request_body <- function(token, content, format, ...) {
     returnFormat = format,
     ...
   )
+}
+
+#' Parse the REDCap API Response
+#'
+#' Decodes the response body according to the requested format: JSON becomes a
+#' nested list, CSV becomes a data frame, anything else stays a raw string.
+#'
+#' @param response An httr2 response object
+#' @param format Character string specifying the format ("json", "csv", "xml")
+#'
+#' @return Parsed response (list, data frame, or character string)
+#' @keywords internal
+parse_response <- function(response, format) {
+  if (format == "json") {
+    parsed_response <- httr2::resp_body_json(response)
+  } else if (format == "csv") {
+    body_text <- httr2::resp_body_string(response)
+    parsed_response <- utils::read.csv(text = body_text, stringsAsFactors = FALSE)
+  } else {
+    parsed_response <- httr2::resp_body_string(response)
+  }
+  parsed_response
 }
 
 #' Get REDCap Records

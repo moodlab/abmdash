@@ -98,8 +98,9 @@ test_that("call_redcap_api and get_redcap_records lock the record response value
   local_redcap_mocks()
   expected <- parse_fixture_body("api-94a9d8-POST.json")
 
-  # call_redcap_api("record") exercises the content param shadowing quirk
-  # (R/redcap_api.R L65) — locked as-is.
+  # call_redcap_api("record") — the local-variable shadowing of the `content`
+  # parameter (resp_body_json assigned back into `content`) was resolved in
+  # AC-3.5 via the parse_response helper; output is identical.
   direct <- httptest2::with_mock_api({ call_redcap_api("record") })
   expect_equal(direct, expected)
 
