@@ -1,0 +1,8 @@
+{
+  "kind": "calendar#events",
+  "etag": "\"fake-etag-events\"",
+  "items": [
+    {"kind": "calendar#event", "id": "evt-1", "summary": "E1", "start": {"dateTime": "2026-04-01T10:00:00Z"}},
+    {"kind": "calendar#event", "id": "evt-2", "summary": "E2", "start": {"dateTime": "2026-04-01T14:30:00Z"}}
+  ]
+}

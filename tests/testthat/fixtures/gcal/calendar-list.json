@@ -1,0 +1,8 @@
+{
+  "kind": "calendar#calendarList",
+  "etag": "\"fake-etag-list\"",
+  "items": [
+    {"kind": "calendar#calendarListEntry", "id": "cal-a@group.calendar.google.com", "summary": "Calendar A"},
+    {"kind": "calendar#calendarListEntry", "id": "cal-b@group.calendar.google.com", "summary": "Calendar B"}
+  ]
+}
