@@ -51,3 +51,6 @@ status: complete
 ### Idempotence & Recovery
 - Safe retry: re-record fixtures; tests idempotent offline.
 - Rollback: git revert.
+
+### Carryover Log
+- PR #53 (AC-3.3): merged after rebase + strengtheners. Cycle-1: fix-now process (CI-fix duplication with #54 → rebased, kept main's extra-packages, 651d793 dropped) + consider folds (env-stop verbatim test; cal_a fixture made UNSORTED so exact-order asserts genuinely lock no-sort). Pre-existing finding: gsheet_api.R:328-342 dead tryCatch timestamp fallback — QUEUED for wave-3b AC-3.6. Status: resolved.

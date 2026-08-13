@@ -54,3 +54,6 @@ status: complete
 ### Idempotence & Recovery
 - Safe retry: re-record fixtures with creds-holder workflow; tests idempotent offline.
 - Rollback: git revert.
+
+### Carryover Log
+- PR #54 (AC-3.2): merged 1b5241e. Builder self-reviewed (no task tool) — independent post-hoc review dispatched. Known nit: 14081 error fixture shared by get_eligible_participants + get_weekly_screening_stats (same request body forces one file; both error frames asserted). CI devtools flake fixed via extra-packages (PR #54). Status: resolved (post-hoc review pending result).

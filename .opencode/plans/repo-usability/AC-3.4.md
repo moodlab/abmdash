@@ -52,3 +52,6 @@ status: complete
 ### Idempotence & Recovery
 - Safe retry: re-run builder steps; fixtures idempotent.
 - Rollback: git revert.
+
+### Carryover Log
+- PR #55 (AC-3.4): merged. Both reviewers clean (independent). Cancellation-completeness verified (all 6 test files + 11 fixtures). Deferred carryovers: preview_abs_csv n-param default-only coverage; encrypt_dashboard /app/docs Docker branch untestable — both pre-existing R/ behavior, queued for wave-3b AC-3.8. Status: resolved.
