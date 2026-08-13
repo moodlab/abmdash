@@ -140,3 +140,16 @@ test_that("check_participant_issues forwards the hardcoded public sheet args", {
   expect_equal(captured$sheet_name, "Form Responses 1")
   expect_true(grepl("Checking for participant issues", out[1], fixed = TRUE))
 })
+
+test_that("get_google_sheets_access_token stops verbatim when env is unset", {
+  local_isolated_env()
+  # Mirrors the redcap-lock sibling convention (test-redcap-behavior-lock.R:79-91):
+  # the env gate fires upstream of the httr2 mocks, so the real token fn runs and
+  # must fail fast on the missing env var (AC-3.3b). The verbatim string is the
+  # reviewed canonical value — keep it stable. (Internal fn; called via :::.)
+  expect_error(
+    abmdash:::get_google_sheets_access_token(),
+    "GOOGLE_SERVICE_ACCOUNT_JSON environment variable is not set or is empty",
+    fixed = TRUE
+  )
+})
