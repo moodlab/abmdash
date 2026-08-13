@@ -37,6 +37,7 @@ status: complete
 
 ### Progress
 - [x] abs + small locked — done (2026-08-13): 353 pass / 1 skip (live-login skipif), offline-green ×2 deterministic, fake-lock mutation verified.
+- [x] review cycle 2 fixes (2026-08-13): +2 tests, 357 pass / 1 skip. (1) get_enrollment_targets L97 CSV-not-found stop locked via base file.exists shadow→FALSE (negative control: rewording stop fails test); (2) abs_login L86-89 strip chain locked via dirty-cred envvar (spaces+quotes) + payload unbox asserts (negative control: strip chain removed → dirty strings in payload fail both asserts). Both negative controls reverted; R/ files untouched in PR.
 ### Decision Log
 - spec-resolved — corrected L461→L460 typo; both inst/extdata/ and data/ enrollment_targets.csv exist (system.file fallback chain).
 - locked-behavior — empty compliance report (get_participant_summary) and empty demographics report both ERROR in current code (do.call(rbind,list())→NULL then NULL[order(-NULL$...)]; $<- on 0-row frame). Tests lock the error instead of a vacuous empty pass; empty-case colnames+types locked where the code DOES return empty frames (compliance time-window, week12 empty frames, summarize_demographics).
