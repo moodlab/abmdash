@@ -1,6 +1,7 @@
 .Rproj.user
 .Renviron
-docs/
+docs/*
+!docs/okf/
 planning.md
 # opencode pipeline transient artifacts
 .opencode/plans/**/AC-*-speculator-*.md
