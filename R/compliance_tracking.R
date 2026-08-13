@@ -91,18 +91,7 @@ get_compliance_report <- function(sheet_url,
   start_dates <- start_dates[!duplicated(start_dates$id), ]
 
   # Compute weekly dates (weeks 1-4)
-  study_dates_list <- list()
-
-  for (week_num in 1:4) {
-    week_data <- data.frame(
-      id = start_dates$id,
-      week = week_num,
-      start = start_dates$start_trial + ((week_num - 1) * 7 * 24 * 60 * 60),
-      end = start_dates$end_trial + ((week_num - 1) * 7 * 24 * 60 * 60),
-      stringsAsFactors = FALSE
-    )
-    study_dates_list[[week_num]] <- week_data
-  }
+  study_dates_list <- lapply(1:4, build_week_frame, start_dates = start_dates)
 
   # Combine all weeks
   study_dates <- do.call(rbind, study_dates_list)
@@ -147,6 +136,20 @@ get_compliance_report <- function(sheet_url,
     compliance = compliance,
     short_sessions = short_sessions
   ))
+}
+
+# Internal helper: build the week-N start/end frame for every participant's
+# start_trial/end_trial. `week_num` is an integer week index (1:4); the frame
+# keeps the id char / week integer / start & end POSIXct types of the exported
+# compliance contract (locked by test-compliance-tracking.R).
+build_week_frame <- function(week_num, start_dates) {
+  data.frame(
+    id = start_dates$id,
+    week = week_num,
+    start = start_dates$start_trial + ((week_num - 1) * 7 * 24 * 60 * 60),
+    end = start_dates$end_trial + ((week_num - 1) * 7 * 24 * 60 * 60),
+    stringsAsFactors = FALSE
+  )
 }
 
 
