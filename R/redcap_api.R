@@ -42,14 +42,7 @@ call_redcap_api <- function(content = "record", format = "json", ...) {
   
   token <- get_redcap_token()
   
-  # Build the request body
-  body_params <- list(
-    token = token,
-    content = content,
-    format = format,
-    returnFormat = format,
-    ...
-  )
+  body_params <- build_request_body(token = token, content = content, format = format, ...)
   
   # Make the API request
   api_url <- "https://redcap.prc.utexas.edu/redcap/api/"
@@ -75,6 +68,29 @@ call_redcap_api <- function(content = "record", format = "json", ...) {
   }, error = function(e) {
     stop("REDCap API call failed: ", e$message)
   })
+}
+
+#' Build the REDCap API Request Body
+#'
+#' Assembles the POST body shared by every REDCap API export: the auth token,
+#' the content/format selection, and the echo of \code{format} into
+#' \code{returnFormat} (the API expects both).
+#'
+#' @param token Character API token from \code{get_redcap_token()}
+#' @param content Character string specifying what to export
+#' @param format Character string specifying the format ("json", "csv", "xml")
+#' @param ... Additional REDCap API parameters
+#'
+#' @return Named list of body parameters
+#' @keywords internal
+build_request_body <- function(token, content, format, ...) {
+  list(
+    token = token,
+    content = content,
+    format = format,
+    returnFormat = format,
+    ...
+  )
 }
 
 #' Get REDCap Records
