@@ -43,14 +43,7 @@ get_calendar_events <- function(calendar_id = "primary", time_min = NULL, time_m
   }
   
   # Parse the service account JSON
-  tryCatch({
-    # Remove outer quotes and unescape inner quotes (from .Renviron formatting)
-    clean_json <- gsub('^"|"$', '', service_account_json)
-    clean_json <- gsub('\\\\"', '"', clean_json)
-    service_account <- jsonlite::fromJSON(clean_json)
-  }, error = function(e) {
-    stop("Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON: ", e$message)
-  })
+  service_account <- parse_service_account_json(service_account_json)
   
   # Get access token using service account
   access_token <- get_google_access_token(service_account)
@@ -89,6 +82,30 @@ get_calendar_events <- function(calendar_id = "primary", time_min = NULL, time_m
   })
 }
 
+#' Parse Service Account JSON
+#'
+#' Internal function to parse the GOOGLE_SERVICE_ACCOUNT_JSON environment
+#' variable value into a service account list. Removes outer quotes and
+#' unescapes inner quotes (from .Renviron formatting) before parsing.
+#'
+#' This is the gcal module's own copy — gsheet_api.R keeps a separate copy so
+#' the modules stay independent (merging them breaks the wrong-mock tripwire in
+#' the behavior-lock tests).
+#'
+#' @param service_account_json Character scalar raw value from the environment.
+#' @return List containing the parsed service account.
+#' @keywords internal
+parse_service_account_json <- function(service_account_json) {
+  tryCatch({
+    # Remove outer quotes and unescape inner quotes (from .Renviron formatting)
+    clean_json <- gsub('^"|"$', '', service_account_json)
+    clean_json <- gsub('\\\\"', '"', clean_json)
+    jsonlite::fromJSON(clean_json)
+  }, error = function(e) {
+    stop("Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON: ", e$message)
+  })
+}
+
 #' Get Google Access Token
 #'
 #' Internal function to get an access token using service account credentials.
@@ -106,6 +123,26 @@ get_google_access_token <- function(service_account) {
   # Create JWT payload for service account authentication
   scope <- "https://www.googleapis.com/auth/calendar.readonly"
   
+  sign_and_exchange_jwt(service_account, scope)
+}
+
+#' Sign and Exchange JWT
+#'
+#' Internal function to build the JWT claim for a service account, sign it with
+#' the private key, and exchange it for an access token at the OAuth2 token
+#' endpoint.
+#'
+#' This is the gcal module's own copy — gsheet_api.R keeps a separate copy so
+#' the modules stay independent (merging them breaks the wrong-mock tripwire in
+#' the behavior-lock tests).
+#'
+#' @param service_account List containing parsed service account JSON.
+#' @param scope Character scalar OAuth2 scope to request.
+#' @return Character string containing the access token.
+#' @keywords internal
+sign_and_exchange_jwt <- function(service_account, scope) {
+  
+  # Create JWT payload for service account authentication
   now <- as.numeric(Sys.time())
   claim <- jose::jwt_claim(
     iss = service_account$client_email,
@@ -148,7 +185,7 @@ get_google_access_token <- function(service_account) {
     stop("No access_token in response. Available fields: ", available_fields)
   }
   
-  return(token_data$access_token)
+  token_data$access_token
 }
 
 #' List Google Calendars
@@ -180,14 +217,7 @@ list_calendars <- function() {
   }
   
   # Parse the service account JSON
-  tryCatch({
-    # Remove outer quotes and unescape inner quotes (from .Renviron formatting)
-    clean_json <- gsub('^"|"$', '', service_account_json)
-    clean_json <- gsub('\\\\"', '"', clean_json)
-    service_account <- jsonlite::fromJSON(clean_json)
-  }, error = function(e) {
-    stop("Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON: ", e$message)
-  })
+  service_account <- parse_service_account_json(service_account_json)
   
   # Get access token using service account
   access_token <- get_google_access_token(service_account)
