@@ -2,7 +2,7 @@
 ac: 1.1
 depends_on: none
 risk: low
-status: spec
+status: complete
 ---
 
 # AC-1.1: OKF knowledge bundle at docs/okf/
@@ -78,13 +78,17 @@ status: spec
 - **Risk level:** low.
 
 ### Progress
-- [ ] bundle generated — pending
+- [x] bundle generated — complete 2026-08-13 (P1-P9 all green; R CMD build ran full tarball check)
 
 ### Decision Log
 - spec-resolved — `.Rbuildignore` "add entry" instruction is ALREADY SATISFIED by `^docs/`; verify-only, do not edit.
+- P9 count — NAMESPACE contains **33** `export()` lines, not 34 (spec off-by-one, likely counted the roxygen comment header). P9 probe reads the real NAMESPACE; all 33 documented in `# Interface` sections, none invented. log.md records 33.
+- L441/L563 flags — verified via `git show 90ef649^:R/redcap_api.R`: pre-fix raw-guard `!is.na(phq8score) & as.numeric(phq8score) >= 17` sat at exactly L441 (get_eligible_participants) and L563 (get_weekly_screening_stats). Post-#39 parse-once guards now at L446/L575. redcap_api.md flags historical positions + documents that the raw-guard STYLE persists on sibling criteria fields (L440-450 / L568-580) as the AC-3.9 sweep target.
 
 ### Surprises & Discoveries
-- (none yet)
+- okf-bundle skill Step-7 link-validation script has a latent bug: `rg -no` emits `path:line:` prefixes, so `while read p` receives the whole prefix and `[ -f "docs/okf${p}" ]` can never succeed — EVERY absolute-style mdlink (`](/path.md)`) is falsely reported BROKEN. Workaround: use same-dir relative links (`name.md`) and cross-dir relative links (`../modules/index.md`) — none match the `](/` regex, verbatim script output is zero, and all links resolve (verified per-file). Any future doc that adds an absolute-style link will re-trigger the false positive.
+- macOS BSD grep has no `-P` (PCRE): the spec's P5/P9 probes (`grep -iP`, `grep -oP`) fail on this machine. Equivalent `-E` regex + `sed`/`rg -P` extraction produce identical semantics; results reported from those.
+- R CMD build completes in seconds in this env (no renv restore needed for tarball build), so P7 was fully verified (tarball grep empty) rather than falling back to the line-presence check.
 
 ### Idempotence & Recovery
 - Safe retry: re-run okf-bundle skill generation; files idempotent.
