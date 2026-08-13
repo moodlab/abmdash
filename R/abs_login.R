@@ -46,14 +46,7 @@ abs_login <- function(
   }
 
   cookie_file <- file.path(tempdir(), "abs_session_cookies.txt")
-  base_req <- httr2::request(base_url) |>
-    httr2::req_options(
-      ssl_verifypeer = 0,
-      ssl_verifyhost = 0,
-      http_version = 2  # HTTP/1.1 — ABS server sends malformed HTTP/2 headers
-    ) |>
-    httr2::req_user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36") |>
-    httr2::req_cookie_preserve(cookie_file)
+  base_req <- build_base_request(base_url, cookie_file)
 
   # Step 1: Fetch login page to get Livewire snapshot and CSRF token
   message("Fetching login page...")
@@ -94,6 +87,28 @@ abs_login <- function(
   }
 
   return(base_req)
+}
+
+
+#' Build Base ABS Request
+#'
+#' Constructs the shared httr2 request chain (SSL options, user agent, cookie
+#' preservation) that all ABS requests build on.
+#'
+#' @param base_url Character string with the base URL.
+#' @param cookie_file Character string with the cookie jar file path.
+#'
+#' @return An httr2 request object.
+#' @keywords internal
+build_base_request <- function(base_url, cookie_file) {
+  httr2::request(base_url) |>
+    httr2::req_options(
+      ssl_verifypeer = 0,
+      ssl_verifyhost = 0,
+      http_version = 2  # HTTP/1.1 — ABS server sends malformed HTTP/2 headers
+    ) |>
+    httr2::req_user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36") |>
+    httr2::req_cookie_preserve(cookie_file)
 }
 
 
