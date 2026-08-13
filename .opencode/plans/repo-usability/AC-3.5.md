@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 feature: repo-usability
 slice: AC-3.5
 issue: 56
@@ -87,8 +87,12 @@ non-idempotent roxygen.
 ## Progress
 
 - [x] 2026-08-13: baseline lock suite green (64 + 25 + 62) before any change
-- [ ] commit 1..11 (in progress)
-- [ ] full suite + probes + PR
+- [x] 2026-08-13: all 11 commits done, lock trio green after each, full suite
+  green (471 pass / 1 pre-existing ABS-env skip), lint 114 < baseline 132
+- [x] 2026-08-13: probes — NAMESPACE diff empty; 9 export Rd files
+  byte-identical (\usage{} frozen); 15 new internal-helper Rd files (additions);
+  3 unpinned strings verbatim; document() ×2 idempotent; no new @export (9)
+- [x] 2026-08-13: PR created
 
 ## Decision Log
 
@@ -106,19 +110,41 @@ non-idempotent roxygen.
 - **metadata_to_df** added beyond the named map — the %||% metadata
   list→df conversion in get_survey_completions needs a name; list_to_df is
   the survey-data conversion (it pairs with ensure_fields L243).
+- **Explicit return() in all extracted helpers** — repo .lintr sets
+  return_style = "explicit"; my implicit returns added 26 return_linter
+  warnings. Adding return() everywhere (incl. inside lapply anon fns) is
+  behavior-neutral and brings lint count below baseline (114 < 132).
+- **Lint baseline**: original file already carried 132 lintr warnings
+  (62 trailing-whitespace, 52 line-length, 11 indentation, 6 return) — repo
+  tolerates them; CI runs only `make test` (devtools::test()), not lintr.
+  Pre-existing shifted lints left untouched (out of scope for zero-behavior
+  refactor).
 
 ## Surprises & Discoveries
 
 - test-faq-verbatim.R scans the CONCATENATION of ALL R/ files, not just
-  redcap_api.R — so suppressWarnings(as.numeric( + USE.NAMES must survive
-  verbatim anywhere in R/ after extraction.
-- detect_guid_field for-loop can be replaced by intersect(known, names)
-  (intersect preserves first-arg order) — one-level iteration, no loop.
-- Lock test comments cite original line numbers (L65, L271-276, L284, L440,
+  redcap_api.R — suppressWarnings(as.numeric( + USE.NAMES must survive
+  verbatim anywhere in R/ after extraction (they live in eligibility_mask /
+  the sapply call).
+- detect_guid_field's for-loop (L667) is replaceable by
+  intersect(known_names, names(report_df)) — intersect preserves first-arg
+  order, so [1] of the intersection is the first known-name match, exactly
+  the for-loop-with-break result. Loop eliminated entirely, not just moved.
+- Lock test comments cited ORIGINAL line numbers (L65, L271-276, L284, L440,
   L446, L470-477, L502, L551, L569, L575, L587-588, L690, L763, L786, L800,
-  L826, L491-498, L599-607, L831-843) — these go stale as the file shrinks;
-  refresh them in the rename commit so reviewers don't flag doc drift.
+  L826, L491-498, L599-607, L831-843). After the file shrank 844→983 (helpers
+  grew it), every ref was stale. Rewrote them to name helpers/functions
+  instead of lines — line-number comments are brittle.
+- R copy-on-write: monthly_breakdown() as a helper CANNOT mutate the caller's
+  enrolled_df (adding month_year), so the caller must attach month_year before
+  calling the counting helper — otherwise the lock-pinned available_fields
+  "record_id, parsed_interview_date, month_year" breaks.
+- lintr return_linter flagged anonymous-function bodies inside my
+  return(do.call(rbind, lapply(...))) wrapping but had NOT flagged the same
+  single-expression anon bodies in the original flat do.call form — lintr
+  quirk; fixed with explicit return() inside the anon fns.
 
 ## Probe (from issue)
 
 Rscript -e 'devtools::document(); devtools::document(); devtools::test(filter="redcap-behavior-lock"); devtools::test(filter="eligible-participants"); devtools::test(filter="faq-verbatim")' && grep -F the 3 unpinned strings && git diff man/ shows no \usage{} changes (on the 9 export Rd files).
+
