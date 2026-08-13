@@ -122,9 +122,6 @@ get_upcoming_followups <- function(days_ahead = 14) {
   recent_completions$days_to_week16 <- as.numeric(recent_completions$week16_due_date - today)
   recent_completions$days_to_week28 <- as.numeric(recent_completions$week28_due_date - today)
   
-  # Create a list to collect all upcoming follow-ups
-  all_followups <- list()
-  
   # Check each participant for incomplete follow-ups
   followup_rows <- lapply(
     split(recent_completions, seq_len(nrow(recent_completions))),
