@@ -1,0 +1,9 @@
+{
+  "range": "Sheet1!A1:C3",
+  "majorDimension": "ROWS",
+  "values": [
+    ["Timestamp", "Participant", "Issue"],
+    ["04/13/2026 09:15:00", "P004"],
+    ["04/10/2026 10:30:00", "P005", "Sync delay"]
+  ]
+}

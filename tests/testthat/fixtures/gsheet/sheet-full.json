@@ -1,0 +1,11 @@
+{
+  "range": "Sheet1!A1:D5",
+  "majorDimension": "ROWS",
+  "values": [
+    ["Timestamp", "Participant", "Issue"],
+    ["04/13/2026 09:15:00", "P004", "App crash"],
+    ["04/10/2026 10:30:00", "P005", "Sync delay"],
+    ["03/20/2026 11:45:00", "P003", "Old issue"],
+    ["02/01/2026 08:00:00", "P001", "Older"]
+  ]
+}
