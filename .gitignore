@@ -10,3 +10,5 @@ planning.md
 .opencode/traces/
 # codegraph index (machine-local, regenerate with `codegraph init`)
 .codegraph/
+# pkgdown local build verification (never committed; deployed site lives on gh-pages)
+pkgdown-site-tmp/

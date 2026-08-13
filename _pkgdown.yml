@@ -1,0 +1,13 @@
+url: https://moodlab.github.io/abmdash/
+
+# Vignettes are auto-discovered as articles; list them explicitly so the
+# Troubleshooting Guides appear together in a stable nav order.
+articles:
+  - title: Troubleshooting Guides
+    contents:
+      - faq
+      - abs-troubleshooting
+      - ci-troubleshooting
+      - docker-troubleshooting
+      - google-troubleshooting
+      - redcap-troubleshooting
