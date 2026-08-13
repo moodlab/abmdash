@@ -69,3 +69,7 @@ status: complete
 ### Idempotence & Recovery
 - Safe retry: re-run builder steps.
 - Rollback: git revert.
+
+### Carryover Log
+- Cycle 1 (PR #47): 2 fix-now (test allowlist asymmetry — corpus-side only for 8/9 entries, paraphrase/fabrication passes CI; eval=FALSE policy not test-enforced) + 3 consider folds (full httr2 string, README pointer grepl, OKF file.exists). Resolved in 28a0618 (single-file test strengthening; suite 85→107; fail-on-break verified both directions). Status: resolved.
+- Cycle 2 (PR #47): clean pass. Reviewer B noted 2 consider-level test-robustness items: eval=FALSE fixed=TRUE match brittle against legit spaced form `eval = FALSE` (all vignettes currently use no-space convention — theoretical); floor guard >=8 tight vs future FAQ dedup. Deferred — noted for future docs-maintenance. Status: deferred-with-note.
