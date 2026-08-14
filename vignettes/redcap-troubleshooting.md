@@ -1,11 +1,4 @@
----
-title: "Troubleshooting REDCap data access"
-output: rmarkdown::html_vignette
-vignette: >
-  %\VignetteIndexEntry{Troubleshooting REDCap data access}
-  %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
----
+# Troubleshooting REDCap data access
 
 ## What this guide is for
 
@@ -30,7 +23,7 @@ The dashboard reads the token from the `REDCAP_API_TOKEN` environment
 variable. On a local machine, credentials live in the `.Renviron` file at the
 repo root. Load them before running any R script:
 
-```{r load-env, eval=FALSE}
+```
 # From the repo root, in a terminal:
 #   source ./load-env.sh
 # then in R:
@@ -55,7 +48,7 @@ the table below).
 REDCap returns an empty string, `""`, for a field a participant never filled
 in. R treats that as *text*, not as a missing value:
 
-```{r empty-string-vs-na, eval=FALSE}
+```
 # REDCap gives us the empty string, not NA
 raw <- c("17", "", "22", "14")
 

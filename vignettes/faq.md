@@ -1,11 +1,4 @@
----
-title: "Frequently Asked Questions: runtime errors and their fixes"
-output: rmarkdown::html_vignette
-vignette: >
-  %\VignetteIndexEntry{Frequently Asked Questions: runtime errors and their fixes}
-  %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
----
+# Frequently Asked Questions: runtime errors and their fixes
 
 ## What this guide is for
 
@@ -20,7 +13,8 @@ step names a command that already exists in this repo; there is no generic
 internet advice here.
 
 All code blocks are shown for reference only and are **never executed** while
-you read this page (`eval = FALSE` in every chunk).
+you read this page (plain Markdown, so GitHub renders it without running
+anything).
 
 The dashboard reads from REDCap, Google Sheets/Calendar, and the ABS portal,
 then renders with Quarto and encrypts with staticrypt. If you are not sure
@@ -45,7 +39,7 @@ refuses and raises *"row names contain missing values"*.
 **Fix.** The fix is a code pattern, not a setting. Parse each numeric field
 **once** and guard on the *parsed* value, never on the raw string:
 
-```{r redcap-parse-once, eval=FALSE}
+```
 # BAD: guard on the RAW string, then convert -- NA leaks into the row index
 # raw[!is.na(raw) & as.numeric(raw) >= 17]
 
@@ -108,7 +102,7 @@ missing or empty.
 **Fix.** Put the **entire JSON document on one line**, wrapped in double
 quotes, in `.Renviron` at the repo root, e.g.:
 
-```{r google-env, eval=FALSE}
+```
 GOOGLE_SERVICE_ACCOUNT_JSON="{"type":"service_account","project_id":"...","client_email":"...","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"}"
 ```
 
@@ -164,7 +158,7 @@ did not redirect back into the site after login.
 
 **Fix.** Confirm the password was not rotated, then create a fresh session:
 
-```{r abs-relogin, eval=FALSE}
+```
 session <- abs_login()
 ```
 
@@ -180,7 +174,7 @@ login page.
 **Fix.** Re-login and re-download in one session (the download needs the
 session object from the login):
 
-```{r abs-session, eval=FALSE}
+```
 session <- abs_login()
 data <- download_abs_csv(session)
 ```
@@ -205,7 +199,7 @@ it during the image build). A fresh clone or a cleared cache has no packages.
 
 **Fix.** From the repo root, restore the pinned packages:
 
-```{r renv-restore, eval=FALSE}
+```
 # From the repo root, in a terminal:
 Rscript -e 'renv::restore()'
 ```
@@ -297,7 +291,7 @@ space; the cache can also get into a bad state.
 
 **Fix.** Re-run the restore from the repo root — it is idempotent:
 
-```{r renv-retry, eval=FALSE}
+```
 Rscript -e 'renv::restore()'
 ```
 
@@ -313,10 +307,10 @@ lockfile with whatever is currently installed.
 - The module notes under `../docs/okf/` document each area in depth — start
   at [`../docs/okf/index.md`](../docs/okf/index.md).
 - The topic vignettes give deeper walk-throughs:
-  [`redcap-troubleshooting.Rmd`](redcap-troubleshooting.Rmd),
-  [`google-troubleshooting.Rmd`](google-troubleshooting.Rmd),
-  [`abs-troubleshooting.Rmd`](abs-troubleshooting.Rmd),
-  [`docker-troubleshooting.Rmd`](docker-troubleshooting.Rmd),
-  [`ci-troubleshooting.Rmd`](ci-troubleshooting.Rmd).
+  [`redcap-troubleshooting.md`](redcap-troubleshooting.md),
+  [`google-troubleshooting.md`](google-troubleshooting.md),
+  [`abs-troubleshooting.md`](abs-troubleshooting.md),
+  [`docker-troubleshooting.md`](docker-troubleshooting.md),
+  [`ci-troubleshooting.md`](ci-troubleshooting.md).
 - Run `make test` from the repo root — the test suite reports which modules
   behave correctly with your current environment.

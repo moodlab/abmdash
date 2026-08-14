@@ -1,11 +1,4 @@
----
-title: "Troubleshooting the local Docker build"
-output: rmarkdown::html_vignette
-vignette: >
-  %\VignetteIndexEntry{Troubleshooting the local Docker build}
-  %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
----
+# Troubleshooting the local Docker build
 
 ## What this guide is for
 
@@ -24,7 +17,7 @@ the ready-made library from stage 1.
 `make docker-render` runs `build-dashboard.sh`, and that script starts by
 deleting the whole output directory:
 
-```{bash, eval=FALSE}
+```
 # build-dashboard.sh, near the top:
 rm -rf docs
 mkdir -p docs
@@ -37,7 +30,7 @@ deleting it — but your laptop is not.
 
 **Before any local `make docker-render`, back up the bundle:**
 
-```{bash, eval=FALSE}
+```
 cp -r docs/okf /tmp/okf-backup
 make docker-render          # WARNING: this just did rm -rf docs
 cp -r /tmp/okf-backup docs/okf   # restore what the script deleted
@@ -45,7 +38,7 @@ cp -r /tmp/okf-backup docs/okf   # restore what the script deleted
 
 If you already ran it and `docs/okf/` is gone, restore it from git instead:
 
-```{bash, eval=FALSE}
+```
 git checkout -- docs/okf
 ```
 
@@ -86,7 +79,7 @@ inside the built image and prints the renv library state, `.Rprofile`, and
 `RENV` variables — everything you need to tell whether the image contains what
 the render expects:
 
-```{bash, eval=FALSE}
+```
 make docker-build      # ensure the image exists first
 bash debug-docker.sh
 ```

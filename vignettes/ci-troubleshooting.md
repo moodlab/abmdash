@@ -1,11 +1,4 @@
----
-title: "Troubleshooting the daily CI build"
-output: rmarkdown::html_vignette
-vignette: >
-  %\VignetteIndexEntry{Troubleshooting the daily CI build}
-  %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
----
+# Troubleshooting the daily CI build
 
 ## What this guide is for
 

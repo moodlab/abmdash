@@ -5,6 +5,7 @@
 ^abmdash\.Rproj$
 ^docs/
 ^inst/dashboard/
+^vignettes/
 ^renv$
 ^renv\.lock$
 ^\.codegraph$

@@ -1,9 +1,9 @@
-# Content-grep guard for vignettes/faq.Rmd
+# Content-grep guard for vignettes/faq.md
 #
-# The FAQ vignette uses eval=FALSE chunks: R CMD check builds the page without
-# ever executing the prose. A fabricated or paraphrased error string would
+# The FAQ vignette is plain Markdown: GitHub renders the page without ever
+# executing the prose. A fabricated or paraphrased error string would
 # therefore still produce a green build — this file is the load-bearing
-# content gate. It locks four invariants:
+# content gate. It locks the following invariants:
 #
 #   (a) every quoted error string in the FAQ exists verbatim in the repo
 #       source (R/, Makefile, Dockerfile, build-dashboard.sh, workflow);
@@ -16,8 +16,8 @@
 #   (e) every ```-fenced error block in the FAQ exists verbatim in the repo
 #       source (the FAQ -> corpus direction — a paraphrased or fabricated
 #       error string cannot slip past the corpus-side checks in (a));
-#   (f) every knitr chunk in the FAQ is eval=FALSE, so no error string is
-#       ever executed at build time.
+#   (f) the FAQ is plain Markdown — no knitr chunk fences — so no error
+#       string can ever execute at build time.
 #
 # If you edit the FAQ: update the strings below to match. If you remove an
 # error entry from the FAQ, remove its checks here too.
@@ -40,7 +40,7 @@ makefile <- repo_read("Makefile")
 dockerfile <- repo_read("Dockerfile")
 build_sh <- repo_read("build-dashboard.sh")
 workflow <- repo_read(".github/workflows/build-dashboard.yml")
-faq <- repo_read("vignettes/faq.Rmd")
+faq <- repo_read("vignettes/faq.md")
 
 # Searchable corpus, mirroring the spec's rg -F sweep targets.
 corpus <- paste(r_source, makefile, dockerfile, build_sh, workflow,
@@ -113,24 +113,46 @@ test_that("every fenced error block in the FAQ exists verbatim in the repo", {
   # FAQ -> corpus direction: extract every ```-fenced block from the FAQ and
   # assert its core error substring appears in the repo source. This closes
   # the asymmetry of the corpus-side checks above — a paraphrased or
-  # fabricated error string cannot pass CI. ```{r ...} chunk fences are
-  # excluded: their interiors are code (e.g. the google-env JSON example is
-  # not an error string and is not in the corpus).
+  # fabricated error string cannot pass CI. The FAQ is plain Markdown now, so
+  # there are no ```{r ...} chunk fences to mark code blocks — code blocks
+  # are detected by content instead (a code line starts with a comment, an
+  # assignment, an Rscript invocation, or an env-var assignment). Error
+  # blocks are detected by content too: a line starting with ERROR, WARNING,
+  # FATAL, Exception, ">", or containing an \bError\b token signals an error
+  # and takes precedence over code signals — a block that mixes a "#"
+  # comment with a real error string cannot hide as code. The default for a
+  # block with neither signal is ERROR, not CODE, so a fabricated error
+  # cannot hide in an ambiguous block. Example: the google-env JSON example
+  # is not an error string and is not in the corpus.
   faq_lines <- strsplit(faq, "\n")[[1]]
+  is_code_line <- function(ln) {
+    grepl("^#", ln) ||
+      grepl("<-", ln, fixed = TRUE) ||
+      grepl("^Rscript ", ln) ||
+      grepl("^GOOGLE_SERVICE_ACCOUNT_JSON=", ln)
+  }
+  is_error_line <- function(ln) {
+    grepl("^(ERROR|WARNING|FATAL|Exception|>)", ln) ||
+      grepl("\\bError\\b", ln)
+  }
   blocks <- character(0)
   in_block <- FALSE
-  code_chunk <- FALSE
   block_lines <- character(0)
   for (ln in faq_lines) {
     if (grepl("^```", ln)) {
       if (in_block) {
-        if (!code_chunk && length(block_lines) > 0) {
+        has_code <- any(vapply(block_lines, is_code_line, logical(1)))
+        has_error <- any(vapply(block_lines, is_error_line, logical(1)))
+        # Error signal wins over code signal; a block with neither signal
+        # defaults to ERROR so fabricated errors cannot hide in
+        # code-classified blocks.
+        is_code <- has_code && !has_error
+        if (!is_code && length(block_lines) > 0) {
           blocks <- c(blocks, paste(block_lines, collapse = "\n"))
         }
         in_block <- FALSE
       } else {
         in_block <- TRUE
-        code_chunk <- grepl("^```\\{", ln)
         block_lines <- character(0)
       }
     } else if (in_block) {
@@ -154,18 +176,18 @@ test_that("every fenced error block in the FAQ exists verbatim in the repo", {
   }
 })
 
-test_that("every knitr chunk in the FAQ is eval=FALSE", {
-  # eval=TRUE chunks would execute quoted error strings at build time; the
-  # FAQ's error blocks are prose for humans, never code.
-  chunk_lines <- grep("^```\\{", strsplit(faq, "\n")[[1]], value = TRUE)
+test_that("FAQ is plain Markdown with no knitr chunk fences", {
+  # vignettes/faq.md is plain Markdown — no knitr chunk headers, so GitHub
+  # renders it without executing anything. Hermeticity is trivially
+  # satisfied: there is no eval=TRUE/eval=FALSE machinery left to assert.
+  # This guard exists to stop knitr chunk fences from creeping back in.
+  faq_lines <- strsplit(faq, "\n")[[1]]
+  chunk_lines <- grep("^```\\{", faq_lines, value = TRUE)
   expect_true(
-    length(chunk_lines) >= 1,
-    label = "FAQ should contain at least one knitr chunk"
-  )
-  expect_true(
-    all(grepl("eval=FALSE", chunk_lines, fixed = TRUE)),
+    length(chunk_lines) == 0,
     label = paste(
-      "every knitr chunk in vignettes/faq.Rmd must set eval=FALSE:",
+      "vignettes/faq.md must contain no knitr chunk fences (plain Markdown",
+      "cannot execute code):",
       paste(chunk_lines, collapse = " | ")
     )
   )
@@ -253,7 +275,7 @@ test_that("FAQ cross-links OKF module docs for module-level entries", {
 test_that("README points at the FAQ vignette", {
   readme <- repo_read("README.md")
   expect_true(
-    grepl("vignettes/faq.Rmd", readme, fixed = TRUE),
-    label = "README should link the FAQ vignette (vignettes/faq.Rmd)"
+    grepl("vignettes/faq.md", readme, fixed = TRUE),
+    label = "README should link the FAQ vignette (vignettes/faq.md)"
   )
 })
