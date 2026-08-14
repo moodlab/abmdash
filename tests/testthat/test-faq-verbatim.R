@@ -116,9 +116,14 @@ test_that("every fenced error block in the FAQ exists verbatim in the repo", {
   # fabricated error string cannot pass CI. The FAQ is plain Markdown now, so
   # there are no ```{r ...} chunk fences to mark code blocks — code blocks
   # are detected by content instead (a code line starts with a comment, an
-  # assignment, an Rscript invocation, or an env-var assignment; error
-  # blocks never do). Example: the google-env JSON example is not an error
-  # string and is not in the corpus.
+  # assignment, an Rscript invocation, or an env-var assignment). Error
+  # blocks are detected by content too: a line starting with ERROR, WARNING,
+  # FATAL, Exception, ">", or containing an \bError\b token signals an error
+  # and takes precedence over code signals — a block that mixes a "#"
+  # comment with a real error string cannot hide as code. The default for a
+  # block with neither signal is ERROR, not CODE, so a fabricated error
+  # cannot hide in an ambiguous block. Example: the google-env JSON example
+  # is not an error string and is not in the corpus.
   faq_lines <- strsplit(faq, "\n")[[1]]
   is_code_line <- function(ln) {
     grepl("^#", ln) ||
@@ -126,13 +131,22 @@ test_that("every fenced error block in the FAQ exists verbatim in the repo", {
       grepl("^Rscript ", ln) ||
       grepl("^GOOGLE_SERVICE_ACCOUNT_JSON=", ln)
   }
+  is_error_line <- function(ln) {
+    grepl("^(ERROR|WARNING|FATAL|Exception|>)", ln) ||
+      grepl("\\bError\\b", ln)
+  }
   blocks <- character(0)
   in_block <- FALSE
   block_lines <- character(0)
   for (ln in faq_lines) {
     if (grepl("^```", ln)) {
       if (in_block) {
-        is_code <- any(vapply(block_lines, is_code_line, logical(1)))
+        has_code <- any(vapply(block_lines, is_code_line, logical(1)))
+        has_error <- any(vapply(block_lines, is_error_line, logical(1)))
+        # Error signal wins over code signal; a block with neither signal
+        # defaults to ERROR so fabricated errors cannot hide in
+        # code-classified blocks.
+        is_code <- has_code && !has_error
         if (!is_code && length(block_lines) > 0) {
           blocks <- c(blocks, paste(block_lines, collapse = "\n"))
         }
